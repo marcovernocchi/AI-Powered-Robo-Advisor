@@ -5,7 +5,6 @@ import streamlit as st
 from frontend.utils.api_client import get_market_history, get_stock_info
 from frontend.utils.charts import price_chart
 
-st.set_page_config(page_title="Market", page_icon="📉", layout="wide")
 st.title("Market Explorer")
 
 if not st.session_state.get("token"):
