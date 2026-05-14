@@ -7,12 +7,53 @@ from frontend.utils.api_client import login, register, get_me
 
 st.set_page_config(page_title="AI Robo-Advisor", page_icon="📈", layout="wide")
 
+
 if "token" not in st.session_state:
     st.session_state.token = None
 if "user" not in st.session_state:
     st.session_state.user = None
+if "primary_color" not in st.session_state:
+    st.session_state.primary_color = "#1f77b4"
+if "page_order" not in st.session_state:
+    st.session_state.page_order = ["Dashboard", "Portfolio", "AI Advisor", "Market"]
 
-if st.session_state.token is None:
+
+def apply_theme(color: str) -> None:
+    st.markdown(f"""
+    <style>
+    [data-testid="stSidebarNavLink"][aria-selected="true"] {{
+        background-color: {color}22 !important;
+        color: {color} !important;
+        border-left: 3px solid {color};
+    }}
+    .stButton > button[kind="primary"],
+    [data-testid="baseButton-primary"] {{
+        background-color: {color} !important;
+        border-color: {color} !important;
+        color: white !important;
+    }}
+    .stFormSubmitButton > button {{
+        background-color: {color} !important;
+        border-color: {color} !important;
+        color: white !important;
+    }}
+    a {{ color: {color} !important; }}
+    [data-baseweb="tab-highlight"] {{ background-color: {color} !important; }}
+    .stProgress > div > div > div > div {{ background-color: {color} !important; }}
+    [data-testid="stSlider"] [role="slider"] {{ background-color: {color} !important; }}
+    </style>
+    """, unsafe_allow_html=True)
+
+apply_theme(st.session_state.primary_color)
+
+PAGE_DEFS = {
+    "Dashboard":  {"file": "pages/1_Dashboard.py",  "icon": "📊"},
+    "Portfolio":  {"file": "pages/2_Portfolio.py",  "icon": "💼"},
+    "AI Advisor": {"file": "pages/3_AI_Advisor.py", "icon": "🤖"},
+    "Market":     {"file": "pages/4_Market.py",     "icon": "📈"},
+}
+
+def login_page() -> None:
     st.title("AI Robo-Advisor Platform")
     st.markdown("Personalized investment advice powered by machine learning and AI.")
     st.divider()
@@ -56,6 +97,9 @@ if st.session_state.token is None:
             else:
                 st.error(result.get("detail", "Registration failed"))
 
+
+if st.session_state.token is None:
+    pg = st.navigation([st.Page(login_page, title="Login", icon="🔐")])
 else:
     user = st.session_state.user
     if not user or "name" not in user:
@@ -63,14 +107,45 @@ else:
         st.session_state.token = None
         st.session_state.user = None
         st.rerun()
-    st.sidebar.success(f"Logged in as **{user['name']}**")
-    if user.get("risk_score"):
-        from backend.models.risk import risk_label
-        st.sidebar.info(f"Risk profile: **{risk_label(user['risk_score'])}** ({user['risk_score']}/10)")
-    if st.sidebar.button("Logout"):
-        st.session_state.token = None
-        st.session_state.user = None
-        st.rerun()
 
-    st.title("Welcome back, " + user["name"])
-    st.info("Use the sidebar to navigate to Dashboard, Portfolio, AI Advisor, or Market.")
+    
+    with st.sidebar:
+        st.success(f"Logged in as **{user['name']}**")
+        if user.get("risk_score"):
+            from backend.models.risk import risk_label
+            st.info(f"Risk profile: **{risk_label(user['risk_score'])}** ({user['risk_score']}/10)")
+        if st.button("Logout"):
+            st.session_state.token = None
+            st.session_state.user = None
+            st.rerun()
+
+        st.divider()
+
+        
+        with st.expander("⚙ Customize"):
+            new_color = st.color_picker("Accent color", st.session_state.primary_color)
+            if new_color != st.session_state.primary_color:
+                st.session_state.primary_color = new_color
+                st.rerun()
+
+            st.markdown("**Page order**")
+            order = list(st.session_state.page_order)
+            for i, name in enumerate(order):
+                col_label, col_up, col_dn = st.columns([3, 1, 1])
+                col_label.markdown(f"{PAGE_DEFS[name]['icon']} {name}")
+                if i > 0 and col_up.button("▲", key=f"up_{i}"):
+                    order[i], order[i - 1] = order[i - 1], order[i]
+                    st.session_state.page_order = order
+                    st.rerun()
+                if i < len(order) - 1 and col_dn.button("▼", key=f"dn_{i}"):
+                    order[i], order[i + 1] = order[i + 1], order[i]
+                    st.session_state.page_order = order
+                    st.rerun()
+
+    pages = [
+        st.Page(PAGE_DEFS[name]["file"], title=name, icon=PAGE_DEFS[name]["icon"])
+        for name in st.session_state.page_order
+    ]
+    pg = st.navigation(pages)
+
+pg.run()

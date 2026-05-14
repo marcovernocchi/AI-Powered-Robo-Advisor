@@ -4,7 +4,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 import streamlit as st
 from frontend.utils.api_client import set_risk_profile, get_me, get_advice, get_advice_history
 
-st.set_page_config(page_title="AI Advisor", page_icon="🤖", layout="wide")
 st.title("AI Financial Advisor")
 
 if not st.session_state.get("token"):

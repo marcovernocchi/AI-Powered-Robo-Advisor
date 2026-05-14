@@ -5,7 +5,6 @@ import streamlit as st
 from frontend.utils.api_client import get_portfolio, add_holding, delete_holding, get_optimization
 from frontend.utils.charts import weights_bar
 
-st.set_page_config(page_title="Portfolio", page_icon="💼", layout="wide")
 st.title("Portfolio Manager")
 
 if not st.session_state.get("token"):

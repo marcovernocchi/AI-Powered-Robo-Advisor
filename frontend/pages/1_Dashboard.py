@@ -5,7 +5,6 @@ import streamlit as st
 from frontend.utils.api_client import get_portfolio
 from frontend.utils.charts import portfolio_pie, pnl_bar
 
-st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
 st.title("Dashboard")
 
 if not st.session_state.get("token"):
