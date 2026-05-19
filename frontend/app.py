@@ -47,10 +47,10 @@ def apply_theme(color: str) -> None:
 apply_theme(st.session_state.primary_color)
 
 PAGE_DEFS = {
-    "Dashboard":  {"file": "pages/1_Dashboard.py",  "icon": "📊"},
-    "Portfolio":  {"file": "pages/2_Portfolio.py",  "icon": "💼"},
-    "AI Advisor": {"file": "pages/3_AI_Advisor.py", "icon": "🤖"},
-    "Market":     {"file": "pages/4_Market.py",     "icon": "📈"},
+    "Dashboard":  {"file": "pages/1_Dashboard.py"},
+    "Portfolio":  {"file": "pages/2_Portfolio.py"},
+    "AI Advisor": {"file": "pages/3_AI_Advisor.py"},
+    "Market":     {"file": "pages/4_Market.py"},
 }
 
 def login_page() -> None:
@@ -99,7 +99,7 @@ def login_page() -> None:
 
 
 if st.session_state.token is None:
-    pg = st.navigation([st.Page(login_page, title="Login", icon="🔐")])
+    pg = st.navigation([st.Page(login_page, title="Login")])
 else:
     user = st.session_state.user
     if not user or "name" not in user:
@@ -109,19 +109,39 @@ else:
         st.rerun()
 
     
+    # ── Top header row ──────────────────────────────────────────────
+    if user.get("risk_score"):
+        from backend.models.risk import risk_label
+        risk_badge = (
+            f'<span style="background:#0d6efd;color:white;padding:6px 14px;border-radius:6px;'
+            f'font-size:0.85rem;line-height:1;">Risk profile: <b>{risk_label(user["risk_score"])}</b>'
+            f' ({user["risk_score"]}/10)</span>'
+        )
+    else:
+        risk_badge = ""
+
+    badge_style = (
+        "background:#1e7e34;color:white;padding:6px 14px;border-radius:6px;"
+        "font-size:0.85rem;line-height:1;"
+    )
+    st.markdown(
+        f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">'
+        f'  <div style="display:flex;gap:8px;align-items:center;">'
+        f'    <span style="{badge_style}">Logged in as <b>{user["name"]}</b></span>'
+        f'    {risk_badge}'
+        f'  </div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    st.divider()
+
     with st.sidebar:
-        st.success(f"Logged in as **{user['name']}**")
-        if user.get("risk_score"):
-            from backend.models.risk import risk_label
-            st.info(f"Risk profile: **{risk_label(user['risk_score'])}** ({user['risk_score']}/10)")
-        if st.button("Logout"):
-            st.session_state.token = None
-            st.session_state.user = None
-            st.rerun()
+        st.markdown("""
+        <style>
+        [data-testid="stSidebarNavLink"] { padding-top: 4px !important; padding-bottom: 4px !important; font-size: 0.9rem; }
+        </style>
+        """, unsafe_allow_html=True)
 
-        st.divider()
-
-        
         with st.expander("⚙ Customize"):
             new_color = st.color_picker("Accent color", st.session_state.primary_color)
             if new_color != st.session_state.primary_color:
@@ -130,9 +150,10 @@ else:
 
             st.markdown("**Page order**")
             order = list(st.session_state.page_order)
+            order = [n for n in order if n in PAGE_DEFS]
             for i, name in enumerate(order):
                 col_label, col_up, col_dn = st.columns([3, 1, 1])
-                col_label.markdown(f"{PAGE_DEFS[name]['icon']} {name}")
+                col_label.markdown(name)
                 if i > 0 and col_up.button("▲", key=f"up_{i}"):
                     order[i], order[i - 1] = order[i - 1], order[i]
                     st.session_state.page_order = order
@@ -142,9 +163,16 @@ else:
                     st.session_state.page_order = order
                     st.rerun()
 
+        st.divider()
+        if st.button("Logout", use_container_width=True):
+            st.session_state.token = None
+            st.session_state.user = None
+            st.rerun()
+
     pages = [
-        st.Page(PAGE_DEFS[name]["file"], title=name, icon=PAGE_DEFS[name]["icon"])
+        st.Page(PAGE_DEFS[name]["file"], title=name)
         for name in st.session_state.page_order
+        if name in PAGE_DEFS
     ]
     pg = st.navigation(pages)
 

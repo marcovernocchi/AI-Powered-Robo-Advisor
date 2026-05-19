@@ -13,7 +13,7 @@ if not st.session_state.get("token"):
 
 col1, col2 = st.columns([3, 1])
 ticker = col1.text_input("Enter ticker symbol", value="AAPL", placeholder="e.g. MSFT, NVDA, BTC-USD").upper().strip()
-period = col2.selectbox("Period", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=3)
+period = col2.selectbox("Period", ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], index=3)
 
 if ticker:
     with st.spinner(f"Fetching data for {ticker}..."):

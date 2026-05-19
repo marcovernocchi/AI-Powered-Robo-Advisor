@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 
 def price_chart(data: list, ticker: str) -> go.Figure:
     df = pd.DataFrame(data)
-    df["Date"] = pd.to_datetime(df["Date"])
+    df["Date"] = pd.to_datetime(df["Date"], utc=True).dt.tz_localize(None)
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df["Date"], y=df["Close"], mode="lines", name=ticker, line=dict(color="#00D4FF", width=2)))
     fig.update_layout(
