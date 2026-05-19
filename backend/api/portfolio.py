@@ -103,7 +103,9 @@ def optimize(current_user: User = Depends(get_current_user), db: Session = Depen
     price_series = {}
     for h in portfolio.holdings:
         hist = get_price_history(h.ticker, period="1y")
-        price_series[h.ticker] = hist["Close"]
+        series = hist["Close"]
+        series.index = series.index.normalize().tz_localize(None)
+        price_series[h.ticker] = series
 
     prices_df = pd.DataFrame(price_series).dropna()
     if len(prices_df) < 60:
