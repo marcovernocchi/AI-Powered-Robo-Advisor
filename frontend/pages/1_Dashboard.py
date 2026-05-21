@@ -16,6 +16,7 @@ with st.spinner("Loading portfolio..."):
 
 holdings = portfolio.get("holdings", [])
 total_value = portfolio.get("total_value", 0.0)
+st.session_state.total_value = total_value
 
 col1, col2, col3 = st.columns(3)
 col1.metric("Total Portfolio Value", f"${total_value:,.2f}")

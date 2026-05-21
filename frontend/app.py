@@ -3,7 +3,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from frontend.utils.api_client import login, register, get_me
+from frontend.utils.api_client import login, register, get_me, get_portfolio
 
 st.set_page_config(page_title="AI Robo-Advisor", page_icon="📈", layout="wide")
 
@@ -16,6 +16,10 @@ if "primary_color" not in st.session_state:
     st.session_state.primary_color = "#1f77b4"
 if "page_order" not in st.session_state:
     st.session_state.page_order = ["Dashboard", "Portfolio", "AI Advisor", "Market"]
+if "show_capital" not in st.session_state:
+    st.session_state.show_capital = False
+if "total_value" not in st.session_state:
+    st.session_state.total_value = None
 
 
 def apply_theme(color: str) -> None:
@@ -110,29 +114,38 @@ else:
 
     
     # ── Top header row ──────────────────────────────────────────────
-    if user.get("risk_score"):
-        from backend.models.risk import risk_label
-        risk_badge = (
-            f'<span style="background:#0d6efd;color:white;padding:6px 14px;border-radius:6px;'
-            f'font-size:0.85rem;line-height:1;">Risk profile: <b>{risk_label(user["risk_score"])}</b>'
-            f' ({user["risk_score"]}/10)</span>'
-        )
-    else:
-        risk_badge = ""
+    hdr_left, hdr_right = st.columns([5, 2])
 
-    badge_style = (
-        "background:#1e7e34;color:white;padding:6px 14px;border-radius:6px;"
-        "font-size:0.85rem;line-height:1;"
-    )
-    st.markdown(
-        f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">'
-        f'  <div style="display:flex;gap:8px;align-items:center;">'
-        f'    <span style="{badge_style}">Logged in as <b>{user["name"]}</b></span>'
-        f'    {risk_badge}'
-        f'  </div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+    with hdr_left:
+        if user.get("risk_score"):
+            from backend.models.risk import risk_label
+            st.markdown(
+                f'<span style="background:#0d6efd;color:white;padding:6px 14px;border-radius:6px;'
+                f'font-size:0.85rem;line-height:1;">Risk profile: <b>{risk_label(user["risk_score"])}</b>'
+                f' ({user["risk_score"]}/10)</span>',
+                unsafe_allow_html=True,
+            )
+
+    with hdr_right:
+        show = st.session_state.show_capital
+        if st.session_state.total_value is None:
+            _p = get_portfolio(st.session_state.token)
+            st.session_state.total_value = _p.get("total_value", 0.0)
+        total = st.session_state.total_value
+
+        cap_label = f"${total:,.2f}" if show else "● ● ● ● ● ● ●"
+
+        st.markdown(
+            f'<div style="text-align:right;font-weight:600;margin-bottom:4px;">{user["name"]}</div>',
+            unsafe_allow_html=True,
+        )
+
+        _, cap_btn_col = st.columns([1, 1])
+        with cap_btn_col:
+            if st.button(cap_label, key="cap_toggle", use_container_width=True):
+                st.session_state.show_capital = not show
+                st.rerun()
+
     st.divider()
 
     with st.sidebar:
