@@ -3,7 +3,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from frontend.utils.api_client import login, register, get_me
+from frontend.utils.api_client import login, register, get_me, get_portfolio
 
 st.set_page_config(page_title="AI Robo-Advisor", page_icon="📈", layout="wide")
 
@@ -16,6 +16,12 @@ if "primary_color" not in st.session_state:
     st.session_state.primary_color = "#1f77b4"
 if "page_order" not in st.session_state:
     st.session_state.page_order = ["Dashboard", "Portfolio", "AI Advisor", "Market"]
+if "show_settings" not in st.session_state:
+    st.session_state.show_settings = False
+if "show_capital" not in st.session_state:
+    st.session_state.show_capital = False
+if "total_value" not in st.session_state:
+    st.session_state.total_value = None
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
 
@@ -24,7 +30,7 @@ def apply_theme(color: str, dark: bool) -> dict:
     bg         = "#0e1117" if dark else "#ffffff"
     text       = "#fafafa" if dark else "#0e1117"
     sidebar_bg = "#1a1d23" if dark else "#f0f2f6"
-   
+
     btn_bg     = "#262730" if dark else "#e8eaf0"
     btn_text   = "#fafafa" if dark else "#0e1117"
     btn_border = "#3d4048" if dark else "#c0c4cc"
@@ -36,7 +42,6 @@ def apply_theme(color: str, dark: bool) -> dict:
 
     st.markdown(f"""
     <style>
-    /* ── background / text ── */
     .stApp {{
         background-color: {bg} !important;
         color: {text} !important;
@@ -44,16 +49,13 @@ def apply_theme(color: str, dark: bool) -> dict:
     [data-testid="stSidebar"] > div:first-child {{
         background-color: {sidebar_bg} !important;
     }}
-    /* make all standard text follow the theme */
     .stApp p, .stApp label, .stApp span, .stApp div,
     .stApp h1, .stApp h2, .stApp h3, .stApp h4 {{
         color: {text} !important;
     }}
-    /* ── top app header / toolbar bar ── */
     [data-testid="stHeader"], .stAppHeader {{
         background-color: {bg} !important;
     }}
-    /* ── expander header + body background + text ── */
     [data-testid="stSidebar"] [data-testid="stExpander"] {{
         background-color: {sidebar_bg} !important;
         border-color: {widget_border} !important;
@@ -72,13 +74,11 @@ def apply_theme(color: str, dark: bool) -> dict:
         background-color: transparent !important;
         color: {text} !important;
     }}
-    /* ── page-order arrow buttons ── */
     [data-testid="stSidebar"] .stButton > button[kind="secondary"] {{
         background-color: {btn_bg} !important;
         border-color: {btn_border} !important;
         color: {btn_text} !important;
     }}
-    /* ── accent colour ── */
     [data-testid="stSidebarNavLink"][aria-selected="true"] {{
         background-color: {color}22 !important;
         color: {color} !important;
@@ -99,7 +99,6 @@ def apply_theme(color: str, dark: bool) -> dict:
     [data-baseweb="tab-highlight"] {{ background-color: {color} !important; }}
     .stProgress > div > div > div > div {{ background-color: {color} !important; }}
     [data-testid="stSlider"] [role="slider"] {{ background-color: {color} !important; }}
-    /* ── input fields, textareas, dropdowns ── */
     [data-testid="stTextInput"] input,
     [data-testid="stNumberInput"] input,
     [data-testid="stTextArea"] textarea {{
@@ -113,7 +112,6 @@ def apply_theme(color: str, dark: bool) -> dict:
         color: {text} !important;
         border-color: {widget_border} !important;
     }}
-    /* ── selectbox dropdown arrow ── */
     [data-baseweb="select"] svg {{
         fill: {text} !important;
         color: {text} !important;
@@ -142,26 +140,22 @@ def apply_theme(color: str, dark: bool) -> dict:
         background-color: {color}22 !important;
         color: {text} !important;
     }}
-    /* ── secondary buttons (Remove, Run Optimization, Retake questionnaire…) ── */
     .stButton > button[kind="secondary"],
     .stButton > button:not([kind="primary"]) {{
         background-color: #2196F3 !important;
         border-color: #1E88E5 !important;
         color: #ffffff !important;
     }}
-    /* ── number input +/- stepper buttons ── */
     [data-testid="stNumberInput"] button {{
         background-color: {btn_bg} !important;
         border-color: {widget_border} !important;
         color: {btn_text} !important;
     }}
-    /* ── dataframe / table ── */
     [data-testid="stDataFrame"] iframe,
     .stDataFrame {{
         background-color: {widget_bg} !important;
         color: {text} !important;
     }}
-    /* ── checkbox: visible light-blue border in both themes ── */
     [data-testid="stCheckbox"] label {{
         outline: 2px solid #4da6ff !important;
         border-radius: 4px !important;
@@ -235,46 +229,78 @@ else:
         st.session_state.user = None
         st.rerun()
 
-    
-    
-    if user.get("risk_score"):
-        from backend.models.risk import risk_label
-        risk_badge = (
-            f'<span style="background:#e53935;color:white;padding:6px 14px;border-radius:6px;'
-            f'font-size:0.85rem;line-height:1;">Risk profile: <b>{risk_label(user["risk_score"])}</b>'
-            f' ({user["risk_score"]}/10)</span>'
-        )
-    else:
-        risk_badge = ""
+    # ── Top header row ──────────────────────────────────────────────
+    hdr_left, hdr_right = st.columns([5, 2])
 
-    badge_style = (
-        f"background:{theme['green_bg']};color:white;padding:6px 14px;border-radius:6px;"
-        "font-size:0.85rem;line-height:1;"
-    )
-    st.markdown(
-        f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">'
-        f'  <div style="display:flex;gap:8px;align-items:center;">'
-        f'    <span style="{badge_style}">Logged in as <b>{user["name"]}</b></span>'
-        f'    {risk_badge}'
-        f'  </div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+    with hdr_left:
+        if user.get("risk_score"):
+            from backend.models.risk import risk_label
+            st.markdown(
+                f'<span style="background:#0d6efd;color:white;padding:6px 14px;border-radius:6px;'
+                f'font-size:0.85rem;line-height:1;">Risk profile: <b>{risk_label(user["risk_score"])}</b>'
+                f' ({user["risk_score"]}/10)</span>',
+                unsafe_allow_html=True,
+            )
+
+    with hdr_right:
+        show = st.session_state.show_capital
+        if st.session_state.total_value is None:
+            _p = get_portfolio(st.session_state.token)
+            st.session_state.total_value = _p.get("total_value", 0.0)
+        total = st.session_state.total_value
+
+        cap_label = f"${total:,.2f}" if show else "● ● ● ● ● ● ●"
+
+        st.markdown(
+            f'<div style="text-align:right;font-weight:600;margin-bottom:4px;">{user["name"]}</div>',
+            unsafe_allow_html=True,
+        )
+
+        _, cap_btn_col = st.columns([1, 1])
+        with cap_btn_col:
+            if st.button(cap_label, key="cap_toggle", use_container_width=True):
+                st.session_state.show_capital = not show
+                st.rerun()
+
     st.divider()
 
     with st.sidebar:
         st.markdown("""
         <style>
         [data-testid="stSidebarNavLink"] { padding-top: 4px !important; padding-bottom: 4px !important; font-size: 0.9rem; }
+        [data-testid="stSidebarUserContent"] [data-testid="stButton"] button {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: rgba(255,255,255,0.65) !important;
+            font-size: 0.9rem !important;
+            font-weight: 400 !important;
+            padding: 4px 16px !important;
+            text-align: left !important;
+            width: 100% !important;
+            min-height: unset !important;
+        }
+        [data-testid="stSidebarUserContent"] [data-testid="stButton"] button p {
+            font-size: 0.9rem !important;
+            font-weight: 400 !important;
+        }
+        [data-testid="stSidebarUserContent"] [data-testid="stButton"] button:hover {
+            color: white !important;
+            background: rgba(255,255,255,0.05) !important;
+        }
         </style>
         """, unsafe_allow_html=True)
 
-        with st.expander("⚙ Customize"):
-            dark_toggle = st.checkbox(
-                "Enable dark mode",
-                value=st.session_state.dark_mode,
-                help="Toggle between dark and light theme",
-            )
+        if st.button("Customize", key="settings_btn", use_container_width=True):
+            st.session_state.show_settings = not st.session_state.show_settings
+
+        if st.session_state.show_settings:
+            new_color = st.color_picker("Accent color", st.session_state.primary_color)
+            if new_color != st.session_state.primary_color:
+                st.session_state.primary_color = new_color
+                st.rerun()
+
+            dark_toggle = st.checkbox("Dark mode", value=st.session_state.dark_mode)
             if dark_toggle != st.session_state.dark_mode:
                 st.session_state.dark_mode = dark_toggle
                 st.rerun()
@@ -294,7 +320,6 @@ else:
                     st.session_state.page_order = order
                     st.rerun()
 
-        st.divider()
         if st.button("Logout", use_container_width=True):
             st.session_state.token = None
             st.session_state.user = None
