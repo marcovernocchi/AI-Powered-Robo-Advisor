@@ -22,11 +22,63 @@ if "show_capital" not in st.session_state:
     st.session_state.show_capital = False
 if "total_value" not in st.session_state:
     st.session_state.total_value = None
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
 
 
-def apply_theme(color: str) -> None:
+def apply_theme(color: str, dark: bool) -> dict:
+    bg         = "#0e1117" if dark else "#ffffff"
+    text       = "#fafafa" if dark else "#0e1117"
+    sidebar_bg = "#1a1d23" if dark else "#f0f2f6"
+
+    btn_bg     = "#262730" if dark else "#e8eaf0"
+    btn_text   = "#fafafa" if dark else "#0e1117"
+    btn_border = "#3d4048" if dark else "#c0c4cc"
+    widget_bg  = "#262730" if dark else "#f7f7f9"
+    widget_border = "#3d4048" if dark else "#d0d3da"
+
+    green_bg   = "#1e7e34" if dark else "#4caf50"
+    blue_bg    = "#0d6efd" if dark else "#42a5f5"
+
     st.markdown(f"""
     <style>
+    .stApp {{
+        background-color: {bg} !important;
+        color: {text} !important;
+    }}
+    [data-testid="stSidebar"] > div:first-child {{
+        background-color: {sidebar_bg} !important;
+    }}
+    .stApp p, .stApp label, .stApp span, .stApp div,
+    .stApp h1, .stApp h2, .stApp h3, .stApp h4 {{
+        color: {text} !important;
+    }}
+    [data-testid="stHeader"], .stAppHeader {{
+        background-color: {bg} !important;
+    }}
+    [data-testid="stSidebar"] [data-testid="stExpander"] {{
+        background-color: {sidebar_bg} !important;
+        border-color: {widget_border} !important;
+    }}
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary,
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary span,
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary svg {{
+        background-color: {sidebar_bg} !important;
+        color: {text} !important;
+        fill: {text} !important;
+    }}
+    [data-testid="stSidebar"] [data-testid="stExpander"] p,
+    [data-testid="stSidebar"] [data-testid="stExpander"] label,
+    [data-testid="stSidebar"] [data-testid="stExpander"] span:not([data-baseweb]),
+    [data-testid="stSidebar"] [data-testid="stExpander"] div {{
+        background-color: transparent !important;
+        color: {text} !important;
+    }}
+    [data-testid="stSidebar"] .stButton > button[kind="secondary"] {{
+        background-color: {btn_bg} !important;
+        border-color: {btn_border} !important;
+        color: {btn_text} !important;
+    }}
     [data-testid="stSidebarNavLink"][aria-selected="true"] {{
         background-color: {color}22 !important;
         color: {color} !important;
@@ -34,23 +86,86 @@ def apply_theme(color: str) -> None:
     }}
     .stButton > button[kind="primary"],
     [data-testid="baseButton-primary"] {{
-        background-color: {color} !important;
-        border-color: {color} !important;
+        background-color: #2196F3 !important;
+        border-color: #1E88E5 !important;
         color: white !important;
     }}
     .stFormSubmitButton > button {{
-        background-color: {color} !important;
-        border-color: {color} !important;
+        background-color: #2196F3 !important;
+        border-color: #1E88E5 !important;
         color: white !important;
     }}
     a {{ color: {color} !important; }}
     [data-baseweb="tab-highlight"] {{ background-color: {color} !important; }}
     .stProgress > div > div > div > div {{ background-color: {color} !important; }}
     [data-testid="stSlider"] [role="slider"] {{ background-color: {color} !important; }}
+    [data-testid="stTextInput"] input,
+    [data-testid="stNumberInput"] input,
+    [data-testid="stTextArea"] textarea {{
+        background-color: {widget_bg} !important;
+        color: {text} !important;
+        border-color: {widget_border} !important;
+    }}
+    [data-baseweb="select"] > div,
+    [data-baseweb="base-input"] {{
+        background-color: {widget_bg} !important;
+        color: {text} !important;
+        border-color: {widget_border} !important;
+    }}
+    [data-baseweb="select"] svg {{
+        fill: {text} !important;
+        color: {text} !important;
+    }}
+    [data-baseweb="popover"],
+    [data-baseweb="popover"] > div,
+    [data-baseweb="popover"] [role="listbox"],
+    [data-baseweb="popover"] ul,
+    [data-baseweb="menu"] {{
+        background-color: {widget_bg} !important;
+        color: {text} !important;
+    }}
+    [data-baseweb="option"],
+    [data-baseweb="option"] *,
+    li[role="option"],
+    li[role="option"] *,
+    [role="listbox"] li,
+    [role="listbox"] li * {{
+        background-color: {widget_bg} !important;
+        color: {text} !important;
+    }}
+    [data-baseweb="option"]:hover,
+    [data-baseweb="option"]:hover *,
+    li[role="option"]:hover,
+    li[role="option"]:hover * {{
+        background-color: {color}22 !important;
+        color: {text} !important;
+    }}
+    .stButton > button[kind="secondary"],
+    .stButton > button:not([kind="primary"]) {{
+        background-color: #2196F3 !important;
+        border-color: #1E88E5 !important;
+        color: #ffffff !important;
+    }}
+    [data-testid="stNumberInput"] button {{
+        background-color: {btn_bg} !important;
+        border-color: {widget_border} !important;
+        color: {btn_text} !important;
+    }}
+    [data-testid="stDataFrame"] iframe,
+    .stDataFrame {{
+        background-color: {widget_bg} !important;
+        color: {text} !important;
+    }}
+    [data-testid="stCheckbox"] label {{
+        outline: 2px solid #4da6ff !important;
+        border-radius: 4px !important;
+        padding: 2px 6px !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
+    return {"green_bg": green_bg, "blue_bg": blue_bg}
 
-apply_theme(st.session_state.primary_color)
+theme = apply_theme(st.session_state.primary_color, st.session_state.dark_mode)
 
 PAGE_DEFS = {
     "Dashboard":  {"file": "pages/1_Dashboard.py"},
@@ -114,7 +229,6 @@ else:
         st.session_state.user = None
         st.rerun()
 
-    
     # ── Top header row ──────────────────────────────────────────────
     hdr_left, hdr_right = st.columns([5, 2])
 
@@ -184,6 +298,11 @@ else:
             new_color = st.color_picker("Accent color", st.session_state.primary_color)
             if new_color != st.session_state.primary_color:
                 st.session_state.primary_color = new_color
+                st.rerun()
+
+            dark_toggle = st.checkbox("Dark mode", value=st.session_state.dark_mode)
+            if dark_toggle != st.session_state.dark_mode:
+                st.session_state.dark_mode = dark_toggle
                 st.rerun()
 
             st.markdown("**Page order**")
