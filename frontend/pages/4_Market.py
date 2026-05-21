@@ -31,7 +31,8 @@ if ticker:
         c4.metric("52W Low", f"${info.get('52w_low'):.2f}" if info.get("52w_low") else "N/A")
 
         if hist.get("data"):
-            st.plotly_chart(price_chart(hist["data"], ticker), use_container_width=True)
+            dark = st.session_state.get("dark_mode", True)
+            st.plotly_chart(price_chart(hist["data"], ticker, dark=dark), use_container_width=True)
 
         if info.get("description"):
             with st.expander("About this company"):
