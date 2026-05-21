@@ -16,6 +16,8 @@ if "primary_color" not in st.session_state:
     st.session_state.primary_color = "#1f77b4"
 if "page_order" not in st.session_state:
     st.session_state.page_order = ["Dashboard", "Portfolio", "AI Advisor", "Market"]
+if "show_settings" not in st.session_state:
+    st.session_state.show_settings = False
 if "show_capital" not in st.session_state:
     st.session_state.show_capital = False
 if "total_value" not in st.session_state:
@@ -152,10 +154,33 @@ else:
         st.markdown("""
         <style>
         [data-testid="stSidebarNavLink"] { padding-top: 4px !important; padding-bottom: 4px !important; font-size: 0.9rem; }
+        [data-testid="stSidebarUserContent"] [data-testid="stButton"] button {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: rgba(255,255,255,0.65) !important;
+            font-size: 0.9rem !important;
+            font-weight: 400 !important;
+            padding: 4px 16px !important;
+            text-align: left !important;
+            width: 100% !important;
+            min-height: unset !important;
+        }
+        [data-testid="stSidebarUserContent"] [data-testid="stButton"] button p {
+            font-size: 0.9rem !important;
+            font-weight: 400 !important;
+        }
+        [data-testid="stSidebarUserContent"] [data-testid="stButton"] button:hover {
+            color: white !important;
+            background: rgba(255,255,255,0.05) !important;
+        }
         </style>
         """, unsafe_allow_html=True)
 
-        with st.expander("⚙ Customize"):
+        if st.button("Customize", key="settings_btn", use_container_width=True):
+            st.session_state.show_settings = not st.session_state.show_settings
+
+        if st.session_state.show_settings:
             new_color = st.color_picker("Accent color", st.session_state.primary_color)
             if new_color != st.session_state.primary_color:
                 st.session_state.primary_color = new_color
@@ -176,7 +201,6 @@ else:
                     st.session_state.page_order = order
                     st.rerun()
 
-        st.divider()
         if st.button("Logout", use_container_width=True):
             st.session_state.token = None
             st.session_state.user = None
