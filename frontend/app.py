@@ -161,6 +161,18 @@ def apply_theme(color: str, dark: bool) -> dict:
         border-radius: 4px !important;
         padding: 2px 6px !important;
     }}
+    div[class*="cap_toggle"] .stButton > button,
+    div[class*="cap-toggle"] .stButton > button {{
+        background-color: {btn_bg} !important;
+        border-color: {btn_border} !important;
+        color: {btn_text} !important;
+    }}
+    div[class*="cap_toggle"] .stButton > button:hover,
+    div[class*="cap-toggle"] .stButton > button:hover {{
+        background-color: {widget_border} !important;
+        border-color: {btn_border} !important;
+        color: {btn_text} !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
     return {"green_bg": green_bg, "blue_bg": blue_bg}
