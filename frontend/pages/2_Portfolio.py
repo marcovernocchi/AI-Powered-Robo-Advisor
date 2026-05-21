@@ -66,4 +66,5 @@ else:
             col1.metric("Expected Annual Return", f"{result['expected_annual_return_pct']:.2f}%")
             col2.metric("Annual Volatility", f"{result['annual_volatility_pct']:.2f}%")
             col3.metric("Sharpe Ratio", f"{result['sharpe_ratio']:.3f}")
-            st.plotly_chart(weights_bar(result["weights"]), use_container_width=True)
+            dark = st.session_state.get("dark_mode", True)
+            st.plotly_chart(weights_bar(result["weights"], dark=dark), use_container_width=True)

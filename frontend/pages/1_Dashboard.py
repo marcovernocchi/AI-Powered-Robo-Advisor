@@ -1,6 +1,7 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+import pandas as pd
 import streamlit as st
 from frontend.utils.api_client import get_portfolio
 from frontend.utils.charts import portfolio_pie, pnl_bar
@@ -28,26 +29,33 @@ st.divider()
 
 if holdings:
     left, right = st.columns(2)
+    dark = st.session_state.get("dark_mode", True)
     with left:
-        st.plotly_chart(portfolio_pie(holdings), use_container_width=True)
+        st.plotly_chart(portfolio_pie(holdings, dark=dark), use_container_width=True)
     with right:
-        st.plotly_chart(pnl_bar(holdings), use_container_width=True)
+        st.plotly_chart(pnl_bar(holdings, dark=dark), use_container_width=True)
 
     st.subheader("Holdings Detail")
-    st.dataframe(
-        [
-            {
-                "Ticker": h["ticker"],
-                "Shares": h["shares"],
-                "Avg Buy ($)": h["avg_buy_price"],
-                "Current ($)": h["current_price"],
-                "Value ($)": h["value"],
-                "P&L (%)": f"{h['pnl_pct']:+.2f}%",
-            }
-            for h in holdings
-        ],
-        use_container_width=True,
-        hide_index=True,
-    )
+    df = pd.DataFrame([
+        {
+            "Ticker": h["ticker"],
+            "Shares": h["shares"],
+            "Avg Buy ($)": h["avg_buy_price"],
+            "Current ($)": h["current_price"],
+            "Value ($)": h["value"],
+            "P&L (%)": f"{h['pnl_pct']:+.2f}%",
+        }
+        for h in holdings
+    ])
+    if not st.session_state.get("dark_mode", True):
+        styled = df.style.set_properties(**{
+            "background-color": "#ffffff",
+            "color": "#000000",
+        }).set_table_styles([
+            {"selector": "thead th", "props": [("background-color", "#f0f2f6"), ("color", "#000000")]},
+        ])
+        st.dataframe(styled, use_container_width=True, hide_index=True)
+    else:
+        st.dataframe(df, use_container_width=True, hide_index=True)
 else:
     st.info("No holdings yet. Head to the Portfolio page to add some.")
