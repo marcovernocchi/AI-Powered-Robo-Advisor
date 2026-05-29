@@ -21,6 +21,7 @@ groq>=0.11.0
 
 # Frontend
 streamlit>=1.36.0
+streamlit-searchbox>=0.1.12
 plotly>=5.22.0
 requests>=2.31.0
 
