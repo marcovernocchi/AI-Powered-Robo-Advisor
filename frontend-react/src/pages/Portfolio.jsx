@@ -1,27 +1,26 @@
 import { useEffect, useState } from 'react'
 import {
-  Card, Title, Text, Button, Badge, TextInput, NumberInput,
+  Card, Title, Text, Button, Badge,
   Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell,
   Flex,
 } from '@tremor/react'
-import { getPortfolio, addHolding, deleteHolding, optimizePortfolio } from '../api/client'
+import { getPortfolio, getPortfolioList, deleteHolding, optimizePortfolio } from '../api/client'
+import AddTransactionModal from '../components/AddTransactionModal'
 
 export default function Portfolio() {
-  const [portfolio, setPortfolio] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [ticker, setTicker] = useState('')
-  const [shares, setShares] = useState('')
-  const [avgPrice, setAvgPrice] = useState('')
-  const [addError, setAddError] = useState('')
-  const [addLoading, setAddLoading] = useState(false)
+  const [portfolio, setPortfolio]       = useState(null)
+  const [portfolioList, setPortfolioList] = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [showModal, setShowModal]       = useState(false)
   const [optimization, setOptimization] = useState(null)
-  const [optLoading, setOptLoading] = useState(false)
-  const [optError, setOptError] = useState('')
+  const [optLoading, setOptLoading]     = useState(false)
+  const [optError, setOptError]         = useState('')
 
-  async function fetchPortfolio() {
+  async function fetchAll() {
     try {
-      const data = await getPortfolio()
+      const [data, list] = await Promise.all([getPortfolio(), getPortfolioList()])
       setPortfolio(data)
+      setPortfolioList(list)
     } catch (e) {
       console.error(e)
     } finally {
@@ -29,46 +28,21 @@ export default function Portfolio() {
     }
   }
 
-  useEffect(() => {
-    fetchPortfolio()
-  }, [])
-
-  async function handleAdd(e) {
-    e.preventDefault()
-    setAddError('')
-    setAddLoading(true)
-    try {
-      await addHolding({
-        ticker: ticker.toUpperCase(),
-        shares: parseFloat(shares),
-        avg_buy_price: parseFloat(avgPrice),
-      })
-      setTicker('')
-      setShares('')
-      setAvgPrice('')
-      await fetchPortfolio()
-    } catch (err) {
-      setAddError(err.message)
-    } finally {
-      setAddLoading(false)
-    }
-  }
+  useEffect(() => { fetchAll() }, [])
 
   async function handleDelete(id) {
     try {
       await deleteHolding(id)
-      await fetchPortfolio()
-    } catch (e) {
-      console.error(e)
-    }
+      await fetchAll()
+    } catch (e) { console.error(e) }
   }
 
-  async function handleOptimize() {
+  async function handleOptimize(portfolioId) {
     setOptError('')
     setOptLoading(true)
     setOptimization(null)
     try {
-      const result = await optimizePortfolio()
+      const result = await optimizePortfolio(portfolioId)
       setOptimization(result)
     } catch (err) {
       setOptError(err.message)
@@ -77,36 +51,48 @@ export default function Portfolio() {
     }
   }
 
-  if (loading) {
-    return <p className="text-gray-500 dark:text-gray-400">Loading...</p>
-  }
+  if (loading) return <p className="text-gray-400 text-sm">Loading...</p>
 
   const holdings = portfolio?.holdings ?? []
-  const total = portfolio?.total_value ?? 0
+  const total    = portfolio?.total_value ?? 0
+  const displayCurrency = portfolio?.display_currency ?? 'USD'
+
+  function fmtCurrency(value, currency) {
+    return value.toLocaleString('en-US', {
+      style: 'currency', currency: currency ?? displayCurrency, maximumFractionDigits: 2,
+    })
+  }
+
+  const firstPortfolioId = portfolioList[0]?.id
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Portfolio</h1>
-        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-          Manage your holdings
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Portfolio</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Manage your holdings</p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 transition-opacity"
+        >
+          + Add transaction
+        </button>
       </div>
 
       {/* Holdings table */}
-      <Card className="dark:bg-gray-900 dark:border-gray-800">
+      <Card className="ring-0 border-0 dark:bg-gray-900">
         <Flex>
           <Title>Holdings</Title>
-          <Text className="text-gray-400">
-            Total: ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </Text>
+          <Text className="text-gray-400 text-sm">{fmtCurrency(total)}</Text>
         </Flex>
 
         {holdings.length > 0 ? (
           <Table className="mt-4">
             <TableHead>
               <TableRow>
-                <TableHeaderCell>Ticker</TableHeaderCell>
+                <TableHeaderCell>Asset</TableHeaderCell>
+                <TableHeaderCell>Type</TableHeaderCell>
                 <TableHeaderCell>Shares</TableHeaderCell>
                 <TableHeaderCell>Avg Buy</TableHeaderCell>
                 <TableHeaderCell>Current</TableHeaderCell>
@@ -118,11 +104,19 @@ export default function Portfolio() {
             <TableBody>
               {holdings.map((h) => (
                 <TableRow key={h.id}>
-                  <TableCell className="font-semibold">{h.ticker}</TableCell>
+                  <TableCell>
+                    <div>
+                      <p className="font-semibold">{h.ticker}</p>
+                      {h.asset_name && <p className="text-xs text-gray-400 truncate max-w-32">{h.asset_name}</p>}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs text-gray-400 capitalize">{h.asset_type ?? 'security'}</span>
+                  </TableCell>
                   <TableCell>{h.shares}</TableCell>
-                  <TableCell>${h.avg_buy_price.toFixed(2)}</TableCell>
-                  <TableCell>${h.current_price.toFixed(2)}</TableCell>
-                  <TableCell>${h.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</TableCell>
+                  <TableCell>{fmtCurrency(h.avg_buy_price, h.native_currency)}</TableCell>
+                  <TableCell>{fmtCurrency(h.current_price, h.native_currency)}</TableCell>
+                  <TableCell>{fmtCurrency(h.value)}</TableCell>
                   <TableCell>
                     <Badge color={h.pnl_pct >= 0 ? 'emerald' : 'red'}>
                       {h.pnl_pct >= 0 ? '+' : ''}{h.pnl_pct.toFixed(2)}%
@@ -145,48 +139,15 @@ export default function Portfolio() {
         )}
       </Card>
 
-      {/* Add holding */}
-      <Card className="dark:bg-gray-900 dark:border-gray-800">
-        <Title>Add Holding</Title>
-        <form onSubmit={handleAdd} className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-          <TextInput
-            placeholder="Ticker (e.g. AAPL)"
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
-            required
-          />
-          <NumberInput
-            placeholder="Shares"
-            value={shares}
-            onValueChange={(v) => setShares(v)}
-            min={0}
-            required
-          />
-          <NumberInput
-            placeholder="Avg buy price ($)"
-            value={avgPrice}
-            onValueChange={(v) => setAvgPrice(v)}
-            min={0}
-            required
-          />
-          <Button type="submit" loading={addLoading}>
-            Add
-          </Button>
-        </form>
-        {addError && <p className="mt-2 text-sm text-red-500">{addError}</p>}
-      </Card>
-
       {/* Optimize */}
-      {holdings.length >= 2 && (
-        <Card className="dark:bg-gray-900 dark:border-gray-800">
+      {holdings.length >= 2 && firstPortfolioId && (
+        <Card className="ring-0 border-0 dark:bg-gray-900">
           <Flex>
             <div>
               <Title>Portfolio Optimization</Title>
-              <Text className="text-gray-400">
-                Mean-variance optimization based on your risk profile
-              </Text>
+              <Text className="text-gray-400">Mean-variance optimization based on your risk profile</Text>
             </div>
-            <Button variant="secondary" onClick={handleOptimize} loading={optLoading}>
+            <Button variant="secondary" onClick={() => handleOptimize(firstPortfolioId)} loading={optLoading}>
               Optimize
             </Button>
           </Flex>
@@ -195,25 +156,20 @@ export default function Portfolio() {
 
           {optimization && (
             <div className="mt-4 space-y-3">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
                   <Text className="text-xs text-gray-400">Expected Return</Text>
-                  <p className="font-bold text-emerald-500">
-                    {(optimization.expected_return * 100).toFixed(2)}%
-                  </p>
+                  <p className="font-bold text-emerald-500">{(optimization.expected_return * 100).toFixed(2)}%</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
                   <Text className="text-xs text-gray-400">Volatility</Text>
-                  <p className="font-bold text-orange-500">
-                    {(optimization.volatility * 100).toFixed(2)}%
-                  </p>
+                  <p className="font-bold text-orange-500">{(optimization.volatility * 100).toFixed(2)}%</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
                   <Text className="text-xs text-gray-400">Sharpe Ratio</Text>
                   <p className="font-bold">{optimization.sharpe_ratio?.toFixed(2) ?? '–'}</p>
                 </div>
               </div>
-
               <div>
                 <Text className="font-medium mb-2">Suggested Weights</Text>
                 <div className="space-y-1">
@@ -221,10 +177,7 @@ export default function Portfolio() {
                     <Flex key={t} className="gap-3">
                       <Text className="w-16 font-semibold">{t}</Text>
                       <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                          className="bg-blue-500 h-2 rounded-full"
-                          style={{ width: `${(w * 100).toFixed(1)}%` }}
-                        />
+                        <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${(w * 100).toFixed(1)}%` }} />
                       </div>
                       <Text className="w-12 text-right">{(w * 100).toFixed(1)}%</Text>
                     </Flex>
@@ -234,6 +187,15 @@ export default function Portfolio() {
             </div>
           )}
         </Card>
+      )}
+
+      {showModal && (
+        <AddTransactionModal
+          portfolioList={portfolioList}
+          defaultPortfolioId={firstPortfolioId}
+          onClose={() => setShowModal(false)}
+          onAdded={fetchAll}
+        />
       )}
     </div>
   )

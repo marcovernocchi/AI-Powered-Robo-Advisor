@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from backend.database import init_db, get_db
+from backend.database import init_db, migrate_db, get_db
 from backend.db.models import User
 from backend.auth.router import router as auth_router, get_current_user
 from backend.api.portfolio import router as portfolio_router
@@ -29,6 +29,7 @@ app.include_router(advice_router)
 @app.on_event("startup")
 def startup():
     init_db()
+    migrate_db()
 
 
 @app.get("/")

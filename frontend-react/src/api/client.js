@@ -31,25 +31,38 @@ export async function login(email, password) {
   return res.json()
 }
 
-export const register = (name, email, password) =>
+export const register = (name, email, password, country) =>
   request('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, country }),
   })
+
+export const updateProfile = (data) =>
+  request('/auth/me', { method: 'PATCH', body: JSON.stringify(data) })
 
 export const getMe = () => request('/auth/me')
 
 export const getPortfolio = () => request('/portfolio/')
+export const getPortfolioList = () => request('/portfolio/list')
+export const getPortfolioById = (id) => request(`/portfolio/${id}`)
+export const createPortfolio = (name) =>
+  request('/portfolio/create', { method: 'POST', body: JSON.stringify({ name }) })
+export const updatePortfolio = (id, data) =>
+  request(`/portfolio/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deletePortfolio = (id) =>
+  request(`/portfolio/${id}`, { method: 'DELETE' })
 export const addHolding = (data) =>
   request('/portfolio/holdings', { method: 'POST', body: JSON.stringify(data) })
 export const deleteHolding = (id) =>
   request(`/portfolio/holdings/${id}`, { method: 'DELETE' })
-export const optimizePortfolio = () => request('/portfolio/optimize')
+export const optimizePortfolio = (portfolioId) =>
+  request(`/portfolio/optimize/${portfolioId}`)
 
 export const getMarketHistory = (ticker, period = '1y') =>
   request(`/market/history/${ticker}?period=${period}`)
 export const getStockInfo = (ticker) => request(`/market/info/${ticker}`)
 export const getStockPrice = (ticker) => request(`/market/price/${ticker}`)
+export const searchAssets = (q) => request(`/market/search?q=${encodeURIComponent(q)}`)
 
 export const generateAdvice = () =>
   request('/advice/generate', { method: 'POST' })

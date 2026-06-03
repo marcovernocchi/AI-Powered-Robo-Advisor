@@ -95,7 +95,7 @@ export default function Market() {
       {/* Stock info */}
       {info && (
         <Grid numItemsMd={2} className="gap-4">
-          <Card className="dark:bg-gray-900 dark:border-gray-800">
+          <Card className="ring-0 border-0 dark:bg-gray-900">
             <div className="flex items-start justify-between">
               <div>
                 <Title>{info.longName ?? ticker}</Title>
@@ -114,7 +114,7 @@ export default function Market() {
             </div>
           </Card>
 
-          <Card className="dark:bg-gray-900 dark:border-gray-800">
+          <Card className="ring-0 border-0 dark:bg-gray-900">
             <Title>Key Metrics</Title>
             <div className="mt-3 space-y-2 text-sm">
               {[
@@ -139,7 +139,7 @@ export default function Market() {
 
       {/* Chart */}
       {chartData.length > 0 && (
-        <Card className="dark:bg-gray-900 dark:border-gray-800">
+        <Card className="ring-0 border-0 dark:bg-gray-900">
           <div className="flex items-center justify-between mb-4">
             <Title>{ticker} Price History</Title>
             <div className="flex gap-1">

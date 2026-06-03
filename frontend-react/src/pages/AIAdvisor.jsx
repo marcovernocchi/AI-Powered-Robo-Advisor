@@ -157,7 +157,7 @@ export default function AIAdvisor() {
       </div>
 
       {/* Risk profile status */}
-      <Card className="dark:bg-gray-900 dark:border-gray-800">
+      <Card className="ring-0 border-0 dark:bg-gray-900">
         <div className="flex items-center justify-between">
           <div>
             <Title>Risk Profile</Title>
@@ -181,7 +181,7 @@ export default function AIAdvisor() {
 
       {/* Questionnaire */}
       {showQuestionnaire && (
-        <Card className="dark:bg-gray-900 dark:border-gray-800">
+        <Card className="ring-0 border-0 dark:bg-gray-900">
           {/* Step indicator */}
           <div className="flex gap-2 mb-6">
             {steps.map((s, i) => (
@@ -269,7 +269,7 @@ export default function AIAdvisor() {
       {/* AI Advice */}
       {user?.risk_score && (
         <>
-          <Card className="dark:bg-gray-900 dark:border-gray-800">
+          <Card className="ring-0 border-0 dark:bg-gray-900">
             <div className="flex items-center justify-between">
               <div>
                 <Title>AI Advice</Title>
@@ -292,7 +292,7 @@ export default function AIAdvisor() {
           </Card>
 
           {history.length > 0 && (
-            <Card className="dark:bg-gray-900 dark:border-gray-800">
+            <Card className="ring-0 border-0 dark:bg-gray-900">
               <Title>Previous Advice</Title>
               <div className="mt-4 space-y-3">
                 {history.map((item) => (

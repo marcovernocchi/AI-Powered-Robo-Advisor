@@ -1,9 +1,10 @@
+import requests
 from fastapi import APIRouter, Query
 from backend.services.market_data import get_price_history, get_stock_info, get_current_price
 
 router = APIRouter(prefix="/market", tags=["market"])
 
-PERIODS = ["1mo", "3mo", "6mo", "1y", "2y", "5y"]
+PERIODS = ["5d", "1mo", "3mo", "6mo", "ytd", "1y", "2y", "5y", "max"]
 
 
 @router.get("/price/{ticker}")
@@ -21,6 +22,28 @@ def history(ticker: str, period: str = Query(default="1y", enum=PERIODS)):
         "ticker": ticker.upper(),
         "data": hist.reset_index().to_dict(orient="records"),
     }
+
+
+@router.get("/search")
+def search(q: str = Query(..., min_length=1)):
+    try:
+        url = "https://query1.finance.yahoo.com/v1/finance/search"
+        params = {"q": q, "quotesCount": 8, "newsCount": 0, "enableFuzzyQuery": "false"}
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(url, params=params, headers=headers, timeout=5)
+        quotes = resp.json().get("quotes", [])
+        return [
+            {
+                "ticker": item["symbol"],
+                "name": item.get("longname") or item.get("shortname", item["symbol"]),
+                "exchange": item.get("fullExchangeName") or item.get("exchange", ""),
+                "type": item.get("quoteType", ""),
+            }
+            for item in quotes
+            if item.get("symbol")
+        ]
+    except Exception as e:
+        return []
 
 
 @router.get("/info/{ticker}")

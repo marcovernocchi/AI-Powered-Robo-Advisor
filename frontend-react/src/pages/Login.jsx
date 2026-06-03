@@ -4,6 +4,33 @@ import { Card, Title, TextInput, Button, Tab, TabGroup, TabList, TabPanel, TabPa
 import { login, register, getMe } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 
+const COUNTRIES = [
+  { code: 'IT', name: 'Italy' },
+  { code: 'CH', name: 'Switzerland' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'AT', name: 'Austria' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'BE', name: 'Belgium' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'GR', name: 'Greece' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'SE', name: 'Sweden' },
+  { code: 'NO', name: 'Norway' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'CZ', name: 'Czech Republic' },
+  { code: 'US', name: 'United States' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'HK', name: 'Hong Kong' },
+  { code: 'SG', name: 'Singapore' },
+]
+
 export default function Login() {
   const { saveToken, setUser } = useAuth()
   const navigate = useNavigate()
@@ -16,6 +43,7 @@ export default function Login() {
   const [regName, setRegName] = useState('')
   const [regEmail, setRegEmail] = useState('')
   const [regPassword, setRegPassword] = useState('')
+  const [regCountry, setRegCountry] = useState('IT')
   const [regError, setRegError] = useState('')
   const [regLoading, setRegLoading] = useState(false)
 
@@ -41,7 +69,7 @@ export default function Login() {
     setRegError('')
     setRegLoading(true)
     try {
-      const { access_token } = await register(regName, regEmail, regPassword)
+      const { access_token } = await register(regName, regEmail, regPassword, regCountry)
       saveToken(access_token)
       const user = await getMe()
       setUser(user)
@@ -61,7 +89,7 @@ export default function Login() {
           <p className="mt-2 text-gray-500 dark:text-gray-400">Personalized AI-powered investment advice</p>
         </div>
 
-        <Card className="dark:bg-gray-900 dark:border-gray-800">
+        <Card className="ring-0 border-0 dark:bg-gray-900">
           <TabGroup>
             <TabList className="mb-6">
               <Tab>Login</Tab>
@@ -116,6 +144,21 @@ export default function Login() {
                     onChange={(e) => setRegPassword(e.target.value)}
                     required
                   />
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      Country of residence
+                    </label>
+                    <select
+                      value={regCountry}
+                      onChange={(e) => setRegCountry(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      {COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   {regError && (
                     <p className="text-sm text-red-500">{regError}</p>
                   )}

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Date, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.database import Base
@@ -12,6 +12,8 @@ class User(Base):
     name = Column(String, nullable=False)
     hashed_password = Column(String, nullable=False)
     risk_score = Column(Integer, nullable=True)
+    country = Column(String, nullable=False, default='US', server_default='US')
+    display_currency = Column(String, nullable=False, default='USD', server_default='USD')
     created_at = Column(DateTime, default=datetime.utcnow)
 
     portfolios = relationship("Portfolio", back_populates="user")
@@ -24,6 +26,7 @@ class Portfolio(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     name = Column(String, default="My Portfolio")
+    include_in_aggregated = Column(Boolean, default=True, server_default='1')
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="portfolios")
@@ -36,8 +39,13 @@ class Holding(Base):
     id = Column(Integer, primary_key=True, index=True)
     portfolio_id = Column(Integer, ForeignKey("portfolios.id"), nullable=False)
     ticker = Column(String, nullable=False)
+    asset_name = Column(String, nullable=True)
+    asset_type = Column(String, nullable=False, default='security', server_default='security')
     shares = Column(Float, nullable=False)
     avg_buy_price = Column(Float, nullable=False)
+    purchase_date = Column(Date, nullable=True)
+    fees = Column(Float, nullable=True, default=0.0)
+    notes = Column(Text, nullable=True)
 
     portfolio = relationship("Portfolio", back_populates="holdings")
 

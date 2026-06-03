@@ -3,10 +3,10 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: '▦' },
-  { to: '/portfolio', label: 'Portfolio', icon: '◈' },
-  { to: '/advisor', label: 'AI Advisor', icon: '✦' },
-  { to: '/market', label: 'Market', icon: '↗' },
+  { to: '/',          label: 'Net Worth' },
+  { to: '/portfolio', label: 'Portfolio' },
+  { to: '/advisor',   label: 'AI Advisor' },
+  { to: '/market',    label: 'Market' },
 ]
 
 export default function Layout() {
@@ -20,61 +20,70 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      {/* Sidebar */}
-      <aside className="w-56 flex flex-col border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 shrink-0">
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-gray-200 dark:border-gray-800">
-          <span className="font-bold text-lg tracking-tight">Robo-Advisor</span>
-        </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+      {/* Top nav */}
+      <header className="h-14 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto h-full px-6 flex items-center justify-between gap-6">
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {navItems.map(({ to, label, icon }) => (
+          {/* Logo */}
+          <span className="font-bold text-lg tracking-tight shrink-0">Fortuna</span>
+
+          {/* Nav links */}
+          <nav className="flex items-center gap-1">
+            {navItems.map(({ to, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                className={({ isActive }) =>
+                  `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-800'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`
+                }
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* Right controls */}
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              onClick={() => setDark(!dark)}
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
+              title="Toggle theme"
+            >
+              {dark ? '☀' : '☾'}
+            </button>
             <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
+              to="/settings"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                `p-2 rounded-lg text-sm transition-colors ${
                   isActive
-                    ? 'bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    ? 'text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-800'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`
               }
+              title="Settings"
             >
-              <span className="text-base">{icon}</span>
-              {label}
+              ⚙
             </NavLink>
-          ))}
-        </nav>
-
-        {/* Bottom: user + theme + logout */}
-        <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-800 space-y-3">
-          <div className="text-sm font-medium truncate">{user?.name}</div>
-          {user?.risk_score && (
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              Risk score: {user.risk_score}/68
-            </div>
-          )}
-          <button
-            onClick={() => setDark(!dark)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            <span>{dark ? 'Dark mode' : 'Light mode'}</span>
-            <span>{dark ? '☀' : '☾'}</span>
-          </button>
-          <button
-            onClick={handleLogout}
-            className="w-full px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors text-left"
-          >
-            Logout
-          </button>
+            <div className="h-5 w-px bg-gray-200 dark:bg-gray-700 mx-1" />
+            <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">{user?.name}</span>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
-      </aside>
+      </header>
 
-      {/* Main */}
-      <main className="flex-1 overflow-y-auto p-8">
+      {/* Page content */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
         <Outlet />
       </main>
     </div>
