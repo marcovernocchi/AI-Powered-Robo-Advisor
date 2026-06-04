@@ -4,10 +4,12 @@ import {
   Grid,
 } from '@tremor/react'
 import { getMarketHistory, getStockInfo, getStockPrice } from '../api/client'
+import { useLang } from '../context/LangContext'
 
 const PERIODS = ['1mo', '3mo', '6mo', '1y', '2y', '5y']
 
 export default function Market() {
+  const { t } = useLang()
   const [input, setInput] = useState('')
   const [ticker, setTicker] = useState('')
   const [info, setInfo] = useState(null)
@@ -19,19 +21,19 @@ export default function Market() {
 
   async function handleSearch(e) {
     e.preventDefault()
-    const t = input.trim().toUpperCase()
-    if (!t) return
+    const sym = input.trim().toUpperCase()
+    if (!sym) return
     setError('')
     setLoading(true)
     setInfo(null)
     setPrice(null)
     setChartData([])
-    setTicker(t)
+    setTicker(sym)
     try {
       const [infoData, priceData, histData] = await Promise.all([
-        getStockInfo(t),
-        getStockPrice(t),
-        getMarketHistory(t, period),
+        getStockInfo(sym),
+        getStockPrice(sym),
+        getMarketHistory(sym, period),
       ])
       setInfo(infoData)
       setPrice(priceData.price)
@@ -71,22 +73,22 @@ export default function Market() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Market</h1>
+        <h1 className="text-2xl font-bold">{t('market.title')}</h1>
         <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-          Look up stock prices and information
+          {t('market.subtitle')}
         </p>
       </div>
 
       {/* Search */}
       <form onSubmit={handleSearch} className="flex gap-3">
         <TextInput
-          placeholder="Enter ticker (e.g. AAPL, MSFT, TSLA)"
+          placeholder={t('market.placeholder')}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           className="flex-1"
         />
         <Button type="submit" loading={loading}>
-          Search
+          {t('market.search')}
         </Button>
       </form>
 
@@ -115,15 +117,15 @@ export default function Market() {
           </Card>
 
           <Card className="ring-0 border-0 dark:bg-gray-900">
-            <Title>Key Metrics</Title>
+            <Title>{t('market.keyMetrics')}</Title>
             <div className="mt-3 space-y-2 text-sm">
               {[
-                ['Market Cap', info.marketCap ? `$${(info.marketCap / 1e9).toFixed(2)}B` : null],
-                ['P/E Ratio', info.trailingPE?.toFixed(2)],
-                ['52w High', info.fiftyTwoWeekHigh ? `$${info.fiftyTwoWeekHigh.toFixed(2)}` : null],
-                ['52w Low', info.fiftyTwoWeekLow ? `$${info.fiftyTwoWeekLow.toFixed(2)}` : null],
-                ['Dividend Yield', info.dividendYield ? `${(info.dividendYield * 100).toFixed(2)}%` : null],
-                ['Beta', info.beta?.toFixed(2)],
+                [t('market.marketCap'), info.marketCap ? `$${(info.marketCap / 1e9).toFixed(2)}B` : null],
+                [t('market.peRatio'), info.trailingPE?.toFixed(2)],
+                [t('market.weekHigh'), info.fiftyTwoWeekHigh ? `$${info.fiftyTwoWeekHigh.toFixed(2)}` : null],
+                [t('market.weekLow'), info.fiftyTwoWeekLow ? `$${info.fiftyTwoWeekLow.toFixed(2)}` : null],
+                [t('market.dividendYield'), info.dividendYield ? `${(info.dividendYield * 100).toFixed(2)}%` : null],
+                [t('market.beta'), info.beta?.toFixed(2)],
               ]
                 .filter(([, v]) => v != null)
                 .map(([label, value]) => (
@@ -141,7 +143,7 @@ export default function Market() {
       {chartData.length > 0 && (
         <Card className="ring-0 border-0 dark:bg-gray-900">
           <div className="flex items-center justify-between mb-4">
-            <Title>{ticker} Price History</Title>
+            <Title>{ticker} {t('market.priceHistory')}</Title>
             <div className="flex gap-1">
               {PERIODS.map((p) => (
                 <button

@@ -1,27 +1,29 @@
 import { useState, useEffect, useRef } from 'react'
 import { addHolding, searchAssets } from '../api/client'
-
-const ASSET_TYPES = [
-  { value: 'security', label: 'Security' },
-  { value: 'crypto',   label: 'Crypto' },
-  { value: 'bond',     label: 'Bond' },
-  { value: 'cash',     label: 'Cash' },
-  { value: 'commodity',label: 'Commodities' },
-]
-
-const SEARCH_PLACEHOLDER = {
-  security:  'Ticker, ISIN, Stock, ETF, …',
-  crypto:    'e.g. BTC-USD, ETH-USD, …',
-  bond:      'Ticker, ISIN, Bond ETF, …',
-  cash:      'Currency or label (e.g. EUR)',
-  commodity: 'Ticker, ISIN, e.g. GLD, USO, …',
-}
+import { useLang } from '../context/LangContext'
 
 function today() {
   return new Date().toISOString().split('T')[0]
 }
 
 export default function AddTransactionModal({ portfolioList, defaultPortfolioId, onClose, onAdded }) {
+  const { t } = useLang()
+
+  const ASSET_TYPES = [
+    { value: 'security',  label: t('modal.security') },
+    { value: 'crypto',    label: t('modal.crypto') },
+    { value: 'bond',      label: t('modal.bond') },
+    { value: 'cash',      label: t('modal.cash') },
+    { value: 'commodity', label: t('modal.commodities') },
+  ]
+
+  const SEARCH_PLACEHOLDER = {
+    security:  'Ticker, ISIN, Stock, ETF, …',
+    crypto:    'e.g. BTC-USD, ETH-USD, …',
+    bond:      'Ticker, ISIN, Bond ETF, …',
+    cash:      'Currency or label (e.g. EUR)',
+    commodity: 'Ticker, ISIN, e.g. GLD, USO, …',
+  }
   const [assetType, setAssetType]     = useState('security')
   const [portfolioId, setPortfolioId] = useState(defaultPortfolioId ?? portfolioList[0]?.id ?? '')
   const [txType, setTxType]           = useState('buy')
@@ -68,7 +70,7 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
   async function submit(e, addAnother = false) {
     e.preventDefault()
     if (!selectedAsset && assetType !== 'cash') {
-      setError('Select an asset from the search results.')
+      setError(t('modal.selectAsset'))
       return
     }
     setError('')
@@ -105,7 +107,21 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
   }
 
   const fieldClass = "w-full px-4 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-600"
+  const selectClass = `${fieldClass} appearance-none pr-10`
   const labelClass = "block text-sm text-gray-500 dark:text-gray-400 mb-1.5"
+
+  function SelectWrapper({ children }) {
+    return (
+      <div className="relative">
+        {children}
+        <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -116,7 +132,7 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
 
         {/* Header */}
         <div className="flex items-start justify-between px-6 pt-6 pb-4">
-          <h2 className="text-2xl font-bold">Add transaction</h2>
+          <h2 className="text-2xl font-bold">{t('modal.addTransaction')}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-2xl leading-none mt-0.5">×</button>
         </div>
 
@@ -142,30 +158,34 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
 
           {/* Portfolio */}
           <div>
-            <label className={labelClass}>Portfolio</label>
-            <select
-              value={portfolioId}
-              onChange={(e) => setPortfolioId(e.target.value)}
-              className={fieldClass}
-            >
-              {portfolioList.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <label className={labelClass}>{t('modal.portfolio')}</label>
+            <SelectWrapper>
+              <select
+                value={portfolioId}
+                onChange={(e) => setPortfolioId(e.target.value)}
+                className={selectClass}
+              >
+                {portfolioList.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </SelectWrapper>
           </div>
 
           {/* Transaction type */}
           <div>
-            <label className={labelClass}>Transaction Type</label>
-            <select value={txType} onChange={(e) => setTxType(e.target.value)} className={fieldClass}>
-              <option value="buy">Buy</option>
-              <option value="sell">Sell</option>
-            </select>
+            <label className={labelClass}>{t('modal.transactionType')}</label>
+            <SelectWrapper>
+              <select value={txType} onChange={(e) => setTxType(e.target.value)} className={selectClass}>
+                <option value="buy">{t('modal.buy')}</option>
+                <option value="sell">{t('modal.sell')}</option>
+              </select>
+            </SelectWrapper>
           </div>
 
           {/* Search */}
           <div>
-            <label className={labelClass}>Add Security</label>
+            <label className={labelClass}>{t('modal.addSecurity')}</label>
             <div className="relative" ref={searchRef}>
               {selectedAsset ? (
                 <div className="flex items-center justify-between px-4 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl">
@@ -215,7 +235,7 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
 
           {/* Quantity */}
           <div>
-            <label className={labelClass}>Quantity</label>
+            <label className={labelClass}>{t('modal.quantity')}</label>
             <input
               type="number"
               placeholder="e.g. 10"
@@ -230,7 +250,7 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
 
           {/* Transaction date */}
           <div>
-            <label className={labelClass}>Transaction Date</label>
+            <label className={labelClass}>{t('modal.transactionDate')}</label>
             <input
               type="date"
               value={txDate}
@@ -242,7 +262,7 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
 
           {/* Purchase price */}
           <div>
-            <label className={labelClass}>Purchase Price</label>
+            <label className={labelClass}>{t('modal.purchasePrice')}</label>
             <input
               type="number"
               placeholder="e.g. 150.00"
@@ -257,7 +277,7 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
 
           {/* Fees (optional) */}
           <div>
-            <label className={labelClass}>Transaction Fees <span className="text-gray-300 dark:text-gray-600">(optional)</span></label>
+            <label className={labelClass}>{t('modal.fees')} <span className="text-gray-300 dark:text-gray-600">{t('modal.optional')}</span></label>
             <input
               type="number"
               placeholder="e.g. 4.95"
@@ -271,9 +291,9 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
 
           {/* Notes (optional) */}
           <div>
-            <label className={labelClass}>Description <span className="text-gray-300 dark:text-gray-600">(optional)</span></label>
+            <label className={labelClass}>{t('modal.description')} <span className="text-gray-300 dark:text-gray-600">{t('modal.optional')}</span></label>
             <textarea
-              placeholder="Add a personal note…"
+              placeholder={t('modal.descPlaceholder')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
@@ -283,7 +303,7 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
 
           {/* Total */}
           <div className="flex items-center justify-between pt-1 pb-2 border-t border-gray-100 dark:border-gray-800">
-            <span className="text-sm font-semibold">Total Amount</span>
+            <span className="text-sm font-semibold">{t('modal.totalAmount')}</span>
             <span className="text-lg font-bold">
               {parseFloat(total).toLocaleString('en-US', { style: 'currency', currency: displayCurrency, maximumFractionDigits: 2 })}
             </span>
@@ -298,7 +318,7 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
             disabled={loading}
             className="w-full py-3.5 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
-            {loading ? 'Adding…' : 'Add transaction'}
+            {loading ? t('modal.adding') : t('modal.addBtn')}
           </button>
           <button
             type="button"
@@ -306,7 +326,7 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
             disabled={loading}
             className="w-full py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors"
           >
-            Save and Add Another
+            {t('modal.saveAndAdd')}
           </button>
         </div>
       </div>

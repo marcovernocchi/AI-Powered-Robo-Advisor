@@ -1,18 +1,20 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-
-const navItems = [
-  { to: '/',          label: 'Net Worth' },
-  { to: '/portfolio', label: 'Portfolio' },
-  { to: '/advisor',   label: 'AI Advisor' },
-  { to: '/market',    label: 'Market' },
-]
+import { useLang } from '../context/LangContext'
 
 export default function Layout() {
   const { user, logout } = useAuth()
   const { dark, setDark } = useTheme()
+  const { t } = useLang()
   const navigate = useNavigate()
+
+  const navItems = [
+    { to: '/',          label: t('nav.netWorth') },
+    { to: '/portfolio', label: t('nav.portfolio') },
+    { to: '/advisor',   label: t('nav.aiAdvisor') },
+    { to: '/market',    label: t('nav.market') },
+  ]
 
   function handleLogout() {
     logout()
@@ -76,7 +78,7 @@ export default function Layout() {
               onClick={handleLogout}
               className="px-3 py-1.5 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
             >
-              Logout
+              {t('nav.logout')}
             </button>
           </div>
         </div>

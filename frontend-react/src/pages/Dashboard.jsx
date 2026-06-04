@@ -4,6 +4,7 @@ import { AreaChart, Badge, ProgressBar } from '@tremor/react'
 import { getPortfolio, getPortfolioById, getPortfolioList, createPortfolio, updatePortfolio, deletePortfolio } from '../api/client'
 import AddTransactionModal from '../components/AddTransactionModal'
 import { useAuth } from '../context/AuthContext'
+import { useLang } from '../context/LangContext'
 
 const PERIOD_OPTIONS = [
   { label: '1W',  api: '5d',  months: null, days: 7 },
@@ -50,23 +51,37 @@ import { getMarketHistory } from '../api/client'
 
 async function buildChartData(holdings, period) {
   if (!holdings?.length) return []
+
   const histories = await Promise.all(
     holdings.map((h) =>
       getMarketHistory(h.ticker, period.api).then((r) => ({
         shares: h.shares,
+        purchaseDate: h.purchase_date ?? null,
         data: r.data,
       }))
     )
   )
+
+  // Initialize all dates in the period to 0
   const byDate = {}
-  histories.forEach(({ shares, data: rows }) => {
+  histories.forEach(({ data: rows }) => {
+    rows.forEach((row) => {
+      const date = row.Date?.split('T')[0] ?? row.Datetime?.split('T')[0]
+      if (date && byDate[date] === undefined) byDate[date] = 0
+    })
+  })
+
+  // Add each holding's value only from its purchase date onwards
+  histories.forEach(({ shares, purchaseDate, data: rows }) => {
     rows.forEach((row) => {
       const date = row.Date?.split('T')[0] ?? row.Datetime?.split('T')[0]
       const price = row.Close
       if (!date || price == null) return
-      byDate[date] = (byDate[date] ?? 0) + shares * price
+      if (purchaseDate && date < purchaseDate) return
+      byDate[date] += shares * price
     })
   })
+
   let sorted = Object.entries(byDate)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, value]) => ({ rawDate: date, Value: parseFloat(value.toFixed(2)) }))
@@ -85,6 +100,7 @@ async function buildChartData(holdings, period) {
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const { t } = useLang()
   const navigate = useNavigate()
 
   const [portfolioList, setPortfolioList] = useState([])   // [{id, name, ...}]
@@ -224,8 +240,8 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <p className="text-sm text-gray-400 dark:text-gray-500">
-        Net worth <span className="mx-1">›</span>
-        <span className="text-gray-700 dark:text-gray-300">Investments</span>
+        {t('dashboard.breadcrumb')} <span className="mx-1">›</span>
+        <span className="text-gray-700 dark:text-gray-300">{t('dashboard.investments')}</span>
       </p>
 
       {/* Two-column layout */}
@@ -236,13 +252,13 @@ export default function Dashboard() {
 
           {/* Header */}
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-base">Portfolios</h2>
+            <h2 className="font-semibold text-base">{t('dashboard.portfolios')}</h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs font-medium hover:opacity-90 transition-opacity"
               >
-                + Add account
+                {t('dashboard.addAccount')}
               </button>
               <button
                 onClick={() => { setSettingsDetail(null); setShowSettings(true) }}
@@ -264,7 +280,7 @@ export default function Dashboard() {
                   : 'border-transparent text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
-              Aggregated
+              {t('dashboard.aggregated')}
             </button>
             {portfolioList.map((p) => (
               <button
@@ -288,7 +304,7 @@ export default function Dashboard() {
               className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
               <span>{showCapital ? '◎' : '⊘'}</span>
-              <span>{showCapital ? 'Hide' : 'Show'}</span>
+              <span>{showCapital ? t('dashboard.hide') : t('dashboard.show')}</span>
             </button>
             {holdings.length > 0 && (
               <div className="flex items-end gap-3">
@@ -341,9 +357,9 @@ export default function Dashboard() {
             </>
           ) : (
             <p className="text-sm text-gray-400 py-8 text-center">
-              No holdings yet —{' '}
+              {t('dashboard.noHoldings')}{' '}
               <button onClick={() => navigate('/portfolio')} className="text-blue-500 hover:underline">
-                add your first position
+                {t('dashboard.addFirstPosition')}
               </button>
             </p>
           )}
@@ -352,7 +368,7 @@ export default function Dashboard() {
         {/* Right column */}
         <div className="w-72 shrink-0 space-y-4">
           <div className="bg-white dark:bg-gray-900 rounded-xl p-5">
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Risk Profile</p>
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">{t('dashboard.riskProfile')}</p>
             {user?.risk_score ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -365,9 +381,9 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-sm text-gray-400">Not set yet</p>
+                <p className="text-sm text-gray-400">{t('dashboard.notSetYet')}</p>
                 <button onClick={() => navigate('/advisor')} className="text-xs text-blue-500 hover:underline">
-                  Set up your risk profile →
+                  {t('dashboard.setUpRiskProfile')}
                 </button>
               </div>
             )}
@@ -375,9 +391,9 @@ export default function Dashboard() {
 
           {holdings.length > 0 && (
             <div className="bg-white dark:bg-gray-900 rounded-xl p-5 space-y-3">
-              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Summary</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{t('dashboard.summary')}</p>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Positions</span>
+                <span className="text-gray-500">{t('dashboard.positions')}</span>
                 <span className="font-medium">{holdings.length}</span>
               </div>
               {(() => {
@@ -386,13 +402,13 @@ export default function Dashboard() {
                 return (
                   <>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Best</span>
+                      <span className="text-gray-500">{t('dashboard.best')}</span>
                       <span className="font-medium text-emerald-500">
                         {best.ticker} {best.pnl_pct >= 0 ? '+' : ''}{best.pnl_pct.toFixed(1)}%
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Worst</span>
+                      <span className="text-gray-500">{t('dashboard.worst')}</span>
                       <span className={`font-medium ${worst.pnl_pct < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                         {worst.ticker} {worst.pnl_pct >= 0 ? '+' : ''}{worst.pnl_pct.toFixed(1)}%
                       </span>
@@ -409,21 +425,21 @@ export default function Dashboard() {
       {holdings.length > 0 && (
         <div className="bg-white dark:bg-gray-900 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-base">Positions</h2>
+            <h2 className="font-semibold text-base">{t('dashboard.positions')}</h2>
             <button
               onClick={() => setShowTxModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs font-medium hover:opacity-90 transition-opacity"
             >
-              + Add transaction
+              {t('dashboard.addTransaction')}
             </button>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 uppercase tracking-wide">
-                <th className="text-left pb-2 font-medium">Title</th>
-                <th className="text-right pb-2 font-medium">Buy in</th>
-                <th className="text-right pb-2 font-medium">Position</th>
-                <th className="text-right pb-2 font-medium">P/L</th>
+                <th className="text-left pb-2 font-medium">{t('dashboard.colTitle')}</th>
+                <th className="text-right pb-2 font-medium">{t('dashboard.colBuyIn')}</th>
+                <th className="text-right pb-2 font-medium">{t('dashboard.colPosition')}</th>
+                <th className="text-right pb-2 font-medium">{t('dashboard.colPL')}</th>
               </tr>
             </thead>
             <tbody>
@@ -436,7 +452,7 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="font-semibold">{h.ticker}</p>
-                        <p className="text-xs text-gray-400">{h.shares} shares</p>
+                        <p className="text-xs text-gray-400">{h.shares} {t('dashboard.positions').toLowerCase()}</p>
                       </div>
                     </div>
                   </td>
@@ -486,7 +502,7 @@ export default function Dashboard() {
                   </button>
                 )}
                 <h3 className="font-bold text-lg">
-                  {settingsDetail ? settingsDetail.name : 'Net worth settings'}
+                  {settingsDetail ? settingsDetail.name : t('dashboard.netWorthSettings')}
                 </h3>
               </div>
               <button
@@ -502,9 +518,9 @@ export default function Dashboard() {
               {!settingsDetail ? (
                 // Portfolio list
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Your accounts</p>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{t('dashboard.yourAccounts')}</p>
                   {portfolioList.length === 0 && (
-                    <p className="text-sm text-gray-400 py-4 text-center">No portfolios yet.</p>
+                    <p className="text-sm text-gray-400 py-4 text-center">{t('dashboard.noPortfolios')}</p>
                   )}
                   {portfolioList.map((p) => (
                     <button
@@ -517,7 +533,7 @@ export default function Dashboard() {
                       </div>
                       <span className="flex-1 text-left font-medium text-sm">{p.name}</span>
                       {!p.include_in_aggregated && (
-                        <span className="text-xs text-gray-400 mr-1">excluded</span>
+                        <span className="text-xs text-gray-400 mr-1">{t('dashboard.excluded')}</span>
                       )}
                       <span className="text-gray-300 dark:text-gray-600">›</span>
                     </button>
@@ -528,8 +544,8 @@ export default function Dashboard() {
                 <div className="space-y-4 py-2">
                   <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800">
                     <div>
-                      <p className="text-sm font-medium">Include in Aggregated</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Show this portfolio in the combined view</p>
+                      <p className="text-sm font-medium">{t('dashboard.includeInAggregated')}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{t('dashboard.includeDesc')}</p>
                     </div>
                     <button
                       onClick={() => handleToggleAggregated(settingsDetail, !settingsDetail.include_in_aggregated)}
@@ -550,7 +566,7 @@ export default function Dashboard() {
                     className="w-full flex items-center gap-2 py-3 text-sm text-red-500 hover:text-red-600 transition-colors"
                   >
                     <span>🗑</span>
-                    <span>Delete "{settingsDetail.name}"</span>
+                    <span>{t('dashboard.deletePortfolio')} "{settingsDetail.name}"</span>
                   </button>
                 </div>
               )}
@@ -566,12 +582,12 @@ export default function Dashboard() {
           onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false) }}
         >
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-80 space-y-4 shadow-xl">
-            <h3 className="font-semibold text-base">New portfolio</h3>
+            <h3 className="font-semibold text-base">{t('dashboard.newPortfolio')}</h3>
             <form onSubmit={handleCreatePortfolio} className="space-y-3">
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="e.g. FinecoBank, Crypto, ETFs…"
+                placeholder={t('dashboard.portfolioPlaceholder')}
                 value={newPortfolioName}
                 onChange={(e) => setNewPortfolioName(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-100"
@@ -583,14 +599,14 @@ export default function Dashboard() {
                   onClick={() => setShowAddModal(false)}
                   className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
                 >
-                  Cancel
+                  {t('dashboard.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={addingPortfolio}
                   className="px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 disabled:opacity-50"
                 >
-                  {addingPortfolio ? 'Creating…' : 'Create'}
+                  {addingPortfolio ? t('dashboard.creating') : t('dashboard.create')}
                 </button>
               </div>
             </form>

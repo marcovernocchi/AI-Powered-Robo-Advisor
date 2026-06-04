@@ -16,8 +16,8 @@ def price(ticker: str):
 
 
 @router.get("/history/{ticker}")
-def history(ticker: str, period: str = Query(default="1y", enum=PERIODS)):
-    hist = get_price_history(ticker.upper(), period=period)
+def history(ticker: str, period: str = Query(default="1y", enum=PERIODS), start_date: str = Query(default=None)):
+    hist = get_price_history(ticker.upper(), period=period, start_date=start_date)
     return {
         "ticker": ticker.upper(),
         "data": hist.reset_index().to_dict(orient="records"),
