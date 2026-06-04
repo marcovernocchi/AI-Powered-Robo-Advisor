@@ -1,0 +1,72 @@
+function getToken() {
+  return localStorage.getItem('token')
+}
+
+async function request(path, options = {}) {
+  const token = getToken()
+  const headers = { 'Content-Type': 'application/json', ...options.headers }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(path, { ...options, headers })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Request failed' }))
+    throw new Error(err.detail || 'Request failed')
+  }
+  return res.json()
+}
+
+export async function login(email, password) {
+  const form = new URLSearchParams()
+  form.append('username', email)
+  form.append('password', password)
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Login failed' }))
+    throw new Error(err.detail || 'Login failed')
+  }
+  return res.json()
+}
+
+export const register = (name, email, password, country) =>
+  request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, password, country }),
+  })
+
+export const updateProfile = (data) =>
+  request('/auth/me', { method: 'PATCH', body: JSON.stringify(data) })
+
+export const getMe = () => request('/auth/me')
+
+export const getPortfolio = () => request('/portfolio/')
+export const getPortfolioList = () => request('/portfolio/list')
+export const getPortfolioById = (id) => request(`/portfolio/${id}`)
+export const createPortfolio = (name) =>
+  request('/portfolio/create', { method: 'POST', body: JSON.stringify({ name }) })
+export const updatePortfolio = (id, data) =>
+  request(`/portfolio/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deletePortfolio = (id) =>
+  request(`/portfolio/${id}`, { method: 'DELETE' })
+export const addHolding = (data) =>
+  request('/portfolio/holdings', { method: 'POST', body: JSON.stringify(data) })
+export const deleteHolding = (id) =>
+  request(`/portfolio/holdings/${id}`, { method: 'DELETE' })
+export const optimizePortfolio = (portfolioId) =>
+  request(`/portfolio/optimize/${portfolioId}`)
+
+export const getMarketHistory = (ticker, period = '1y') =>
+  request(`/market/history/${ticker}?period=${period}`)
+export const getStockInfo = (ticker) => request(`/market/info/${ticker}`)
+export const getStockPrice = (ticker) => request(`/market/price/${ticker}`)
+export const searchAssets = (q) => request(`/market/search?q=${encodeURIComponent(q)}`)
+
+export const generateAdvice = () =>
+  request('/advice/generate', { method: 'POST' })
+export const getAdviceHistory = () => request('/advice/history')
+
+export const setRiskProfile = (answers) =>
+  request('/risk-profile', { method: 'POST', body: JSON.stringify(answers) })

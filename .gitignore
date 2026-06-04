@@ -9,3 +9,7 @@ venv/
 dist/
 build/
 .pytest_cache/
+
+# React frontend
+frontend-react/node_modules/
+frontend-react/dist/
