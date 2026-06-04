@@ -59,6 +59,13 @@ def get_optimization(token: str) -> dict:
     return _call("GET", "/portfolio/optimize", headers=_auth_headers(token))
 
 
+def search_tickers(query: str) -> list:
+    """Returns list of {symbol, name, type} dicts for the given prefix query."""
+    if not query or len(query) < 1:
+        return []
+    return _call("GET", f"/market/search?q={query}") or []
+
+
 def get_market_history(ticker: str, period: str = "1y") -> dict:
     return _call("GET", f"/market/history/{ticker}?period={period}")
 

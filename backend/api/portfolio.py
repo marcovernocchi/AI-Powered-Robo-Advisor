@@ -244,16 +244,32 @@ def optimize(
     if len(portfolio.holdings) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 holdings to optimize")
 
+    unique_tickers = list(dict.fromkeys(h.ticker for h in portfolio.holdings))
     price_series = {}
-    for h in portfolio.holdings:
-        hist = get_price_history(h.ticker, period="1y")
-        series = hist["Close"]
-        series.index = series.index.normalize().tz_localize(None)
-        price_series[h.ticker] = series
+    fetch_errors = []
+    for ticker in unique_tickers:
+        try:
+            hist = get_price_history(ticker, period="1y")
+            if hist.empty or len(hist) < 10:
+                fetch_errors.append(ticker)
+                continue
+            series = hist["Close"]
+            series.index = series.index.normalize().tz_localize(None)
+            price_series[ticker] = series
+        except Exception as exc:
+            fetch_errors.append(ticker)
+            print(f"[optimize] failed to fetch history for {ticker}: {exc}")
 
-    prices_df = pd.DataFrame(price_series).dropna()
-    if len(prices_df) < 60:
-        raise HTTPException(status_code=400, detail="Not enough historical data (need 60+ trading days)")
+    if len(price_series) < 2:
+        detail = "Could not fetch enough price history to optimise."
+        if fetch_errors:
+            detail += f" Failed tickers: {', '.join(fetch_errors)}."
+        raise HTTPException(status_code=400, detail=detail)
+
+    prices_df = pd.DataFrame(price_series)
 
     risk_score = current_user.risk_score or 5
-    return optimize_portfolio(prices_df, risk_score)
+    result = optimize_portfolio(prices_df, risk_score)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result

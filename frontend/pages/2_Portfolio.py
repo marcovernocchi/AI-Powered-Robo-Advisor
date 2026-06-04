@@ -3,6 +3,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import streamlit as st
 from frontend.utils.api_client import get_portfolio, add_holding, delete_holding, get_optimization
+from frontend.utils.ticker_search import ticker_searchbox, extract_ticker
 from frontend.utils.charts import weights_bar
 
 st.title("Portfolio Manager")
@@ -12,26 +13,58 @@ if not st.session_state.get("token"):
     st.stop()
 
 token = st.session_state.token
+dark  = st.session_state.get("dark_mode", True)
 
-# --- Add holding ---
+# ── session-state init ────────────────────────────────────────────────────────
+if "ticker_search_key" not in st.session_state:
+    st.session_state.ticker_search_key = 0
+
+
+# ── Add holding section ───────────────────────────────────────────────────────
 st.subheader("Add a Holding")
-with st.form("add_holding_form", clear_on_submit=True):
-    col1, col2, col3 = st.columns(3)
-    ticker = col1.text_input("Ticker (e.g. AAPL)")
-    shares = col2.number_input("Number of Shares", min_value=0.001, step=0.1)
-    avg_price = col3.number_input("Average Buy Price ($)", min_value=0.01, step=0.01)
-    if st.form_submit_button("Add", use_container_width=True):
-        if ticker:
-            result = add_holding(token, ticker.strip().upper(), shares, avg_price)
-            st.success(result.get("message", "Added"))
-            st.rerun()
+
+# The searchbox must live OUTSIDE a st.form because forms batch all widget
+# updates until submit, which prevents the live suggestion loading.
+col_ticker, col_shares, col_price = st.columns(3)
+
+with col_ticker:
+    # Keyed with a counter so it resets cleanly after a successful add.
+    ticker_raw = ticker_searchbox(
+        label="Ticker",
+        key=f"ticker_sb_{st.session_state.ticker_search_key}",
+        dark=dark,
+    )
+
+with col_shares:
+    shares = st.number_input(
+        "Number of Shares", min_value=0.001, step=0.1,
+        key=f"shares_{st.session_state.ticker_search_key}",
+    )
+
+with col_price:
+    avg_price = st.number_input(
+        "Average Buy Price ($)", min_value=0.01, step=0.01,
+        key=f"price_{st.session_state.ticker_search_key}",
+    )
+
+# "Add" button lives below the three columns, full-width
+if st.button("Add", use_container_width=True, key="add_btn"):
+    ticker = extract_ticker(ticker_raw)
+    if ticker:
+        result = add_holding(token, ticker, shares, avg_price)
+        st.success(result.get("message", "Added"))
+        # Increment key to reset searchbox + number inputs on next render
+        st.session_state.ticker_search_key += 1
+        st.rerun()
+    else:
+        st.error("Please enter or select a ticker symbol.")
 
 st.divider()
 
-# --- Current holdings ---
+# ── Current holdings ──────────────────────────────────────────────────────────
 st.subheader("Current Holdings")
 portfolio = get_portfolio(token)
-holdings = portfolio.get("holdings", [])
+holdings  = portfolio.get("holdings", [])
 
 if holdings:
     for h in holdings:
@@ -47,7 +80,7 @@ else:
 
 st.divider()
 
-# --- Portfolio optimization ---
+# ── Portfolio optimisation ─────────────────────────────────────────────────────
 st.subheader("Portfolio Optimization")
 st.markdown("Uses mean-variance optimization to suggest the best weights for your risk profile.")
 
@@ -62,9 +95,10 @@ else:
         if "error" in result or "detail" in result:
             st.error(result.get("detail") or result.get("error"))
         else:
+            for w in result.get("warnings", []):
+                st.warning(w)
             col1, col2, col3 = st.columns(3)
             col1.metric("Expected Annual Return", f"{result['expected_annual_return_pct']:.2f}%")
-            col2.metric("Annual Volatility", f"{result['annual_volatility_pct']:.2f}%")
-            col3.metric("Sharpe Ratio", f"{result['sharpe_ratio']:.3f}")
-            dark = st.session_state.get("dark_mode", True)
+            col2.metric("Annual Volatility",       f"{result['annual_volatility_pct']:.2f}%")
+            col3.metric("Sharpe Ratio",             f"{result['sharpe_ratio']:.3f}")
             st.plotly_chart(weights_bar(result["weights"], dark=dark), use_container_width=True)

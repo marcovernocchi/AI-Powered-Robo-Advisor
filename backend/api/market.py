@@ -49,3 +49,29 @@ def search(q: str = Query(..., min_length=1)):
 @router.get("/info/{ticker}")
 def info(ticker: str):
     return get_stock_info(ticker.upper())
+
+
+_ALLOWED_TYPES = {"EQUITY", "ETF", "CRYPTOCURRENCY", "MUTUALFUND", "INDEX"}
+
+
+@router.get("/search")
+def search(q: str = Query(default="", min_length=1, max_length=20)):
+    """Prefix-match symbol search backed by Yahoo Finance. Returns up to 8 results."""
+    try:
+        quotes = yf.Search(
+            q,
+            max_results=8,
+            news_count=0,
+            lists_count=0,
+            include_cb=False,
+        ).quotes
+        results = []
+        for r in quotes:
+            symbol = r.get("symbol", "")
+            qtype  = r.get("quoteType", "")
+            name   = r.get("shortname") or r.get("longname") or ""
+            if symbol and qtype in _ALLOWED_TYPES:
+                results.append({"symbol": symbol, "name": name, "type": qtype})
+        return results[:8]
+    except Exception:
+        return []
