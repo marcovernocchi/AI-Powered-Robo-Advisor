@@ -25,6 +25,14 @@ class HoldingIn(BaseModel):
     portfolio_id: Optional[int] = None
 
 
+class HoldingUpdate(BaseModel):
+    shares: Optional[float] = None
+    avg_buy_price: Optional[float] = None
+    purchase_date: Optional[str] = None
+    fees: Optional[float] = None
+    notes: Optional[str] = None
+
+
 class PortfolioCreate(BaseModel):
     name: str
 
@@ -146,6 +154,40 @@ def add_holding(
     db.add(holding)
     db.commit()
     return {"message": "Holding added"}
+
+
+@router.patch("/holdings/{holding_id}")
+def update_holding(
+    holding_id: int,
+    data: HoldingUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    user_portfolio_ids = [
+        p.id for p in db.query(Portfolio).filter(Portfolio.user_id == current_user.id).all()
+    ]
+    holding = db.query(Holding).filter(
+        Holding.id == holding_id,
+        Holding.portfolio_id.in_(user_portfolio_ids),
+    ).first()
+    if not holding:
+        raise HTTPException(status_code=404, detail="Holding not found")
+    if data.shares is not None:
+        holding.shares = data.shares
+    if data.avg_buy_price is not None:
+        holding.avg_buy_price = data.avg_buy_price
+    if data.purchase_date is not None:
+        from datetime import date as date_type
+        try:
+            holding.purchase_date = date_type.fromisoformat(data.purchase_date)
+        except ValueError:
+            pass
+    if data.fees is not None:
+        holding.fees = data.fees
+    if data.notes is not None:
+        holding.notes = data.notes
+    db.commit()
+    return {"message": "Holding updated"}
 
 
 @router.delete("/holdings/{holding_id}")

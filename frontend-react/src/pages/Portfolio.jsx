@@ -6,6 +6,8 @@ import {
 } from '@tremor/react'
 import { getPortfolio, getPortfolioList, deleteHolding, optimizePortfolio } from '../api/client'
 import AddTransactionModal from '../components/AddTransactionModal'
+import EditHoldingModal from '../components/EditHoldingModal'
+import ImportModal from '../components/ImportModal'
 import { useLang } from '../context/LangContext'
 
 export default function Portfolio() {
@@ -14,9 +16,18 @@ export default function Portfolio() {
   const [portfolioList, setPortfolioList] = useState([])
   const [loading, setLoading]           = useState(true)
   const [showModal, setShowModal]       = useState(false)
+  const [showImport, setShowImport]     = useState(false)
+  const [editingHolding, setEditingHolding] = useState(null)
   const [optimization, setOptimization] = useState(null)
   const [optLoading, setOptLoading]     = useState(false)
   const [optError, setOptError]         = useState('')
+  const [sortKey, setSortKey]           = useState(null)
+  const [sortDir, setSortDir]           = useState('desc')
+
+  function handleSort(key) {
+    if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
 
   async function fetchAll() {
     try {
@@ -55,7 +66,10 @@ export default function Portfolio() {
 
   if (loading) return <p className="text-gray-400 text-sm">Loading...</p>
 
-  const holdings = portfolio?.holdings ?? []
+  const rawHoldings = portfolio?.holdings ?? []
+  const holdings = sortKey
+    ? [...rawHoldings].sort((a, b) => sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey])
+    : rawHoldings
   const total    = portfolio?.total_value ?? 0
   const displayCurrency = portfolio?.display_currency ?? 'USD'
 
@@ -74,12 +88,20 @@ export default function Portfolio() {
           <h1 className="text-2xl font-bold">{t('portfolio.title')}</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{t('portfolio.subtitle')}</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          {t('portfolio.addTransaction')}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            {t('portfolio.importFile')}
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            {t('portfolio.addTransaction')}
+          </button>
+        </div>
       </div>
 
       {/* Holdings table */}
@@ -98,8 +120,18 @@ export default function Portfolio() {
                 <TableHeaderCell>{t('portfolio.shares')}</TableHeaderCell>
                 <TableHeaderCell>{t('portfolio.avgBuy')}</TableHeaderCell>
                 <TableHeaderCell>{t('portfolio.current')}</TableHeaderCell>
-                <TableHeaderCell>{t('portfolio.value')}</TableHeaderCell>
-                <TableHeaderCell>{t('portfolio.pl')}</TableHeaderCell>
+                <TableHeaderCell>
+                  <button onClick={() => handleSort('value')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                    {t('portfolio.value')}
+                    <span className="text-gray-300 dark:text-gray-600">{sortKey === 'value' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
+                  </button>
+                </TableHeaderCell>
+                <TableHeaderCell>
+                  <button onClick={() => handleSort('pnl_pct')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                    {t('portfolio.pl')}
+                    <span className="text-gray-300 dark:text-gray-600">{sortKey === 'pnl_pct' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
+                  </button>
+                </TableHeaderCell>
                 <TableHeaderCell></TableHeaderCell>
               </TableRow>
             </TableHead>
@@ -125,12 +157,20 @@ export default function Portfolio() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <button
-                      onClick={() => handleDelete(h.id)}
-                      className="text-xs text-red-400 hover:text-red-600"
-                    >
-                      {t('portfolio.remove')}
-                    </button>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setEditingHolding(h)}
+                        className="text-xs text-blue-400 hover:text-blue-600"
+                      >
+                        {t('portfolio.edit')}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(h.id)}
+                        className="text-xs text-red-400 hover:text-red-600"
+                      >
+                        {t('portfolio.remove')}
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -189,6 +229,23 @@ export default function Portfolio() {
             </div>
           )}
         </Card>
+      )}
+
+      {showImport && (
+        <ImportModal
+          portfolioList={portfolioList}
+          defaultPortfolioId={firstPortfolioId}
+          onClose={() => setShowImport(false)}
+          onImported={fetchAll}
+        />
+      )}
+
+      {editingHolding && (
+        <EditHoldingModal
+          holding={editingHolding}
+          onClose={() => setEditingHolding(null)}
+          onSaved={fetchAll}
+        />
       )}
 
       {showModal && (

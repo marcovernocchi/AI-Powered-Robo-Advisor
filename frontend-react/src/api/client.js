@@ -53,10 +53,34 @@ export const deletePortfolio = (id) =>
   request(`/portfolio/${id}`, { method: 'DELETE' })
 export const addHolding = (data) =>
   request('/portfolio/holdings', { method: 'POST', body: JSON.stringify(data) })
+export const updateHolding = (id, data) =>
+  request(`/portfolio/holdings/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteHolding = (id) =>
   request(`/portfolio/holdings/${id}`, { method: 'DELETE' })
 export const optimizePortfolio = (portfolioId) =>
   request(`/portfolio/optimize/${portfolioId}`)
+
+export async function importPreview(file) {
+  const token = localStorage.getItem('token')
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch('/portfolio/import/preview', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Upload failed' }))
+    throw new Error(err.detail || 'Upload failed')
+  }
+  return res.json()
+}
+
+export const importConfirm = (holdings, portfolioId) =>
+  request('/portfolio/import/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ holdings, portfolio_id: portfolioId }),
+  })
 
 export const getMarketHistory = (ticker, period = '1y', startDate = null) => {
   const params = new URLSearchParams({ period })

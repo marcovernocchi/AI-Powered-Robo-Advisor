@@ -11,10 +11,11 @@ export function LangProvider({ children }) {
     localStorage.setItem('lang', val)
   }
 
-  function t(key) {
+  function t(key, params) {
     const keys = key.split('.')
     let val = translations[lang]
     for (const k of keys) val = val?.[k]
+    if (typeof val === 'function') return val(params)
     return val ?? key
   }
 

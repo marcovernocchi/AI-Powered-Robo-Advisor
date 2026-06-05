@@ -7,6 +7,7 @@ from backend.database import init_db, migrate_db, get_db
 from backend.db.models import User
 from backend.auth.router import router as auth_router, get_current_user
 from backend.api.portfolio import router as portfolio_router
+from backend.api.import_portfolio import router as import_router
 from backend.api.market import router as market_router
 from backend.api.advice import router as advice_router
 from backend.models.risk import RiskQuestion, calculate_risk_score, risk_label
@@ -22,6 +23,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(portfolio_router)
+app.include_router(import_router)
 app.include_router(market_router)
 app.include_router(advice_router)
 

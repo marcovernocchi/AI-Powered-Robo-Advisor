@@ -19,7 +19,7 @@ function thinData(data, opt) {
   if (!data.length) return data
   let step
   if (opt.days || (opt.months && opt.months <= 1)) step = 1
-  else if (opt.months && opt.months <= 12) step = 7
+  else if (opt.label === 'YTD' || (opt.months && opt.months <= 12)) step = 7
   else if (opt.months && opt.months <= 60) step = 14
   else step = 30
   return data.filter((_, i) => i % step === 0 || i === data.length - 1)
@@ -27,7 +27,7 @@ function thinData(data, opt) {
 
 function formatDate(dateStr, opt) {
   const d = new Date(dateStr)
-  if (opt.days || (opt.months && opt.months <= 12)) {
+  if (opt.days || opt.label === 'YTD' || (opt.months && opt.months <= 12)) {
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
   }
   return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
@@ -54,11 +54,21 @@ async function buildChartData(holdings, period) {
 
   const histories = await Promise.all(
     holdings.map((h) =>
-      getMarketHistory(h.ticker, period.api).then((r) => ({
-        shares: h.shares,
-        purchaseDate: h.purchase_date ?? null,
-        data: r.data,
-      }))
+      getMarketHistory(h.ticker, period.api)
+        .then((r) => ({
+          shares: h.shares,
+          avgBuyPrice: h.avg_buy_price,
+          currentPrice: h.current_price,
+          purchaseDate: h.purchase_date ?? null,
+          data: r.data,
+        }))
+        .catch(() => ({
+          shares: h.shares,
+          avgBuyPrice: h.avg_buy_price,
+          currentPrice: h.current_price,
+          purchaseDate: h.purchase_date ?? null,
+          data: [],
+        }))
     )
   )
 
@@ -71,14 +81,35 @@ async function buildChartData(holdings, period) {
     })
   })
 
-  // Add each holding's value only from its purchase date onwards
-  histories.forEach(({ shares, purchaseDate, data: rows }) => {
+  // Add each holding's value only from its purchase date onwards.
+  // For dates with no price data, forward-fill with the last known price.
+  const allDates = Object.keys(byDate).sort()
+
+  histories.forEach(({ shares, avgBuyPrice, currentPrice, purchaseDate, data: rows }) => {
+    // Build a price map for known dates
+    const priceMap = {}
     rows.forEach((row) => {
       const date = row.Date?.split('T')[0] ?? row.Datetime?.split('T')[0]
-      const price = row.Close
-      if (!date || price == null) return
+      if (date && row.Close != null) priceMap[date] = row.Close
+    })
+
+    const knownDates = Object.keys(priceMap).sort()
+    const fallback = currentPrice ?? avgBuyPrice
+
+    allDates.forEach((date) => {
       if (purchaseDate && date < purchaseDate) return
-      byDate[date] += shares * price
+
+      if (priceMap[date] != null) {
+        byDate[date] += shares * priceMap[date]
+      } else if (knownDates.length > 0) {
+        // Last known price before or on this date
+        const last = knownDates.filter((d) => d <= date).at(-1)
+          ?? knownDates[0]  // if no data before this date, use earliest available
+        byDate[date] += shares * priceMap[last]
+      } else {
+        // No history at all — use current price
+        byDate[date] += shares * fallback
+      }
     })
   })
 
@@ -338,22 +369,48 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
-              <div className={chartLoading ? 'opacity-40 pointer-events-none' : ''}>
-                <AreaChart
-                  className="h-56"
-                  data={chartData}
-                  index="date"
-                  categories={['Value']}
-                  colors={[isUp ? 'emerald' : 'red']}
-                  valueFormatter={(v) => v.toLocaleString('en-US', {
-                    style: 'currency', currency: displayCurrency, maximumFractionDigits: 0,
-                  })}
-                  showLegend={false}
-                  showXAxis showYAxis
-                  yAxisWidth={90}
-                  curveType="monotone"
-                />
-              </div>
+              {(() => {
+                const vals = chartData.map((d) => d.Value)
+                const lo = Math.min(...vals)
+                const hi = Math.max(...vals)
+                const pad = (hi - lo) * 0.4
+                const yMin = Math.max(0, lo - pad)
+                const fmtCompact = (v) => new Intl.NumberFormat('en-US', {
+                  style: 'currency', currency: displayCurrency,
+                  notation: 'compact', maximumFractionDigits: 1,
+                }).format(v)
+                const fmtFull = (v) => new Intl.NumberFormat('en-US', {
+                  style: 'currency', currency: displayCurrency,
+                  maximumFractionDigits: 0,
+                }).format(v)
+                const CustomTooltip = ({ payload, active, label }) => {
+                  if (!active || !payload?.length) return null
+                  return (
+                    <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg px-4 py-3">
+                      <p className="text-xs text-gray-400 mb-1">{label}</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{fmtFull(payload[0].value)}</p>
+                    </div>
+                  )
+                }
+                return (
+                  <div className={chartLoading ? 'opacity-40 pointer-events-none' : ''}>
+                    <AreaChart
+                      className="h-56"
+                      data={chartData}
+                      index="date"
+                      categories={['Value']}
+                      colors={[isUp ? 'emerald' : 'red']}
+                      valueFormatter={fmtCompact}
+                      customTooltip={CustomTooltip}
+                      showLegend={false}
+                      showXAxis showYAxis
+                      minValue={yMin}
+                      yAxisWidth={70}
+                      curveType="linear"
+                    />
+                  </div>
+                )
+              })()}
             </>
           ) : (
             <p className="text-sm text-gray-400 py-8 text-center">
