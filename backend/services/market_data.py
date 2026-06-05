@@ -2,8 +2,13 @@ import yfinance as yf
 import pandas as pd
 
 
-def get_price_history(ticker: str, period: str = "1y") -> pd.DataFrame:
-    hist = yf.Ticker(ticker).history(period=period)
+def get_price_history(ticker: str, period: str = "1y", start_date: str = None) -> pd.DataFrame:
+    ticker_obj = yf.Ticker(ticker)
+    if start_date:
+        from datetime import date
+        hist = ticker_obj.history(start=start_date, end=date.today().isoformat())
+    else:
+        hist = ticker_obj.history(period=period)
     return hist[["Close", "Volume"]].dropna()
 
 

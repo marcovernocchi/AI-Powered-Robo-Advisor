@@ -57,6 +57,7 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
             "native_currency": native_currency,
             "value": round(value, 2),
             "pnl_pct": round(pnl_pct, 2),
+            "purchase_date": h.purchase_date.isoformat() if h.purchase_date else None,
         })
     return holdings_out, round(total_value, 2)
 

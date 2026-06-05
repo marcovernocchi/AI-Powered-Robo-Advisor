@@ -58,8 +58,11 @@ export const deleteHolding = (id) =>
 export const optimizePortfolio = (portfolioId) =>
   request(`/portfolio/optimize/${portfolioId}`)
 
-export const getMarketHistory = (ticker, period = '1y') =>
-  request(`/market/history/${ticker}?period=${period}`)
+export const getMarketHistory = (ticker, period = '1y', startDate = null) => {
+  const params = new URLSearchParams({ period })
+  if (startDate) params.set('start_date', startDate)
+  return request(`/market/history/${ticker}?${params}`)
+}
 export const getStockInfo = (ticker) => request(`/market/info/${ticker}`)
 export const getStockPrice = (ticker) => request(`/market/price/${ticker}`)
 export const searchAssets = (q) => request(`/market/search?q=${encodeURIComponent(q)}`)

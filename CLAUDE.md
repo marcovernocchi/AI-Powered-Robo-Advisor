@@ -10,8 +10,14 @@ Finance II university project. Economics master student + CS collaborator.
 # Backend
 uvicorn backend.main:app --reload
 
-# Frontend (from project root)
+# Frontend Streamlit (from project root)
 PYTHONPATH=. streamlit run frontend/app.py
+
+# Frontend React (first time only: install dependencies)
+cd frontend-react && npm install
+
+# Frontend React (avvio)
+cd frontend-react && npm run dev
 
 # Tests
 PYTHONPATH=. pytest tests/ -v

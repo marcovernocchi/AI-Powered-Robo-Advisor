@@ -6,8 +6,10 @@ import {
 } from '@tremor/react'
 import { getPortfolio, getPortfolioList, deleteHolding, optimizePortfolio } from '../api/client'
 import AddTransactionModal from '../components/AddTransactionModal'
+import { useLang } from '../context/LangContext'
 
 export default function Portfolio() {
+  const { t } = useLang()
   const [portfolio, setPortfolio]       = useState(null)
   const [portfolioList, setPortfolioList] = useState([])
   const [loading, setLoading]           = useState(true)
@@ -69,21 +71,21 @@ export default function Portfolio() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Portfolio</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Manage your holdings</p>
+          <h1 className="text-2xl font-bold">{t('portfolio.title')}</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{t('portfolio.subtitle')}</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 transition-opacity"
         >
-          + Add transaction
+          {t('portfolio.addTransaction')}
         </button>
       </div>
 
       {/* Holdings table */}
       <Card className="ring-0 border-0 dark:bg-gray-900">
         <Flex>
-          <Title>Holdings</Title>
+          <Title>{t('portfolio.holdings')}</Title>
           <Text className="text-gray-400 text-sm">{fmtCurrency(total)}</Text>
         </Flex>
 
@@ -91,13 +93,13 @@ export default function Portfolio() {
           <Table className="mt-4">
             <TableHead>
               <TableRow>
-                <TableHeaderCell>Asset</TableHeaderCell>
-                <TableHeaderCell>Type</TableHeaderCell>
-                <TableHeaderCell>Shares</TableHeaderCell>
-                <TableHeaderCell>Avg Buy</TableHeaderCell>
-                <TableHeaderCell>Current</TableHeaderCell>
-                <TableHeaderCell>Value</TableHeaderCell>
-                <TableHeaderCell>P&L</TableHeaderCell>
+                <TableHeaderCell>{t('portfolio.asset')}</TableHeaderCell>
+                <TableHeaderCell>{t('portfolio.type')}</TableHeaderCell>
+                <TableHeaderCell>{t('portfolio.shares')}</TableHeaderCell>
+                <TableHeaderCell>{t('portfolio.avgBuy')}</TableHeaderCell>
+                <TableHeaderCell>{t('portfolio.current')}</TableHeaderCell>
+                <TableHeaderCell>{t('portfolio.value')}</TableHeaderCell>
+                <TableHeaderCell>{t('portfolio.pl')}</TableHeaderCell>
                 <TableHeaderCell></TableHeaderCell>
               </TableRow>
             </TableHead>
@@ -127,7 +129,7 @@ export default function Portfolio() {
                       onClick={() => handleDelete(h.id)}
                       className="text-xs text-red-400 hover:text-red-600"
                     >
-                      Remove
+                      {t('portfolio.remove')}
                     </button>
                   </TableCell>
                 </TableRow>
@@ -135,7 +137,7 @@ export default function Portfolio() {
             </TableBody>
           </Table>
         ) : (
-          <Text className="mt-4 text-gray-400 text-center py-6">No holdings yet.</Text>
+          <Text className="mt-4 text-gray-400 text-center py-6">{t('portfolio.noHoldings')}</Text>
         )}
       </Card>
 
@@ -144,11 +146,11 @@ export default function Portfolio() {
         <Card className="ring-0 border-0 dark:bg-gray-900">
           <Flex>
             <div>
-              <Title>Portfolio Optimization</Title>
-              <Text className="text-gray-400">Mean-variance optimization based on your risk profile</Text>
+              <Title>{t('portfolio.optimization')}</Title>
+              <Text className="text-gray-400">{t('portfolio.optimizationDesc')}</Text>
             </div>
             <Button variant="secondary" onClick={() => handleOptimize(firstPortfolioId)} loading={optLoading}>
-              Optimize
+              {t('portfolio.optimize')}
             </Button>
           </Flex>
 
@@ -158,24 +160,24 @@ export default function Portfolio() {
             <div className="mt-4 space-y-3">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <Text className="text-xs text-gray-400">Expected Return</Text>
+                  <Text className="text-xs text-gray-400">{t('portfolio.expectedReturn')}</Text>
                   <p className="font-bold text-emerald-500">{(optimization.expected_return * 100).toFixed(2)}%</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <Text className="text-xs text-gray-400">Volatility</Text>
+                  <Text className="text-xs text-gray-400">{t('portfolio.volatility')}</Text>
                   <p className="font-bold text-orange-500">{(optimization.volatility * 100).toFixed(2)}%</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <Text className="text-xs text-gray-400">Sharpe Ratio</Text>
+                  <Text className="text-xs text-gray-400">{t('portfolio.sharpeRatio')}</Text>
                   <p className="font-bold">{optimization.sharpe_ratio?.toFixed(2) ?? '–'}</p>
                 </div>
               </div>
               <div>
-                <Text className="font-medium mb-2">Suggested Weights</Text>
+                <Text className="font-medium mb-2">{t('portfolio.suggestedWeights')}</Text>
                 <div className="space-y-1">
-                  {Object.entries(optimization.weights ?? {}).map(([t, w]) => (
-                    <Flex key={t} className="gap-3">
-                      <Text className="w-16 font-semibold">{t}</Text>
+                  {Object.entries(optimization.weights ?? {}).map(([ticker, w]) => (
+                    <Flex key={ticker} className="gap-3">
+                      <Text className="w-16 font-semibold">{ticker}</Text>
                       <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${(w * 100).toFixed(1)}%` }} />
                       </div>

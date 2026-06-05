@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { updateProfile, getMe } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { useLang } from '../context/LangContext'
 
 const COUNTRIES = [
   { value: 'IT', label: 'Italy',          flag: '🇮🇹', currency: 'EUR' },
@@ -110,9 +111,9 @@ function Section({ title, children }) {
 
 export default function Settings() {
   const { user, setUser } = useAuth()
+  const { t, lang, setLang } = useLang()
   const [country, setCountry] = useState(user?.country ?? 'IT')
   const [currency, setCurrency] = useState(user?.display_currency ?? 'EUR')
-  const [language, setLanguage] = useState(localStorage.getItem('lang') ?? 'en')
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
 
@@ -122,7 +123,7 @@ export default function Settings() {
       await updateProfile(patch)
       const updated = await getMe()
       setUser(updated)
-      setSavedMsg('Saved')
+      setSavedMsg(t('settings.saved'))
       setTimeout(() => setSavedMsg(''), 2000)
     } catch (e) {
       console.error(e)
@@ -144,9 +145,8 @@ export default function Settings() {
   }
 
   function handleLanguage(val) {
-    setLanguage(val)
-    localStorage.setItem('lang', val)
-    setSavedMsg('Saved')
+    setLang(val)
+    setSavedMsg(t('settings.saved'))
     setTimeout(() => setSavedMsg(''), 2000)
   }
 
@@ -154,34 +154,34 @@ export default function Settings() {
     <div className="max-w-lg space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your account preferences</p>
+          <h1 className="text-2xl font-bold">{t('settings.title')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('settings.subtitle')}</p>
         </div>
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
+        {saving && <span className="text-xs text-gray-400">{t('settings.saving')}</span>}
         {savedMsg && !saving && <span className="text-xs text-emerald-500">{savedMsg} ✓</span>}
       </div>
 
       <div className="space-y-6">
-        <Section title="Location">
+        <Section title={t('settings.location')}>
           <FlagSelect options={COUNTRIES} value={country} onChange={handleCountry} />
         </Section>
 
-        <Section title="Currency">
+        <Section title={t('settings.currency')}>
           <FlagSelect options={CURRENCIES} value={currency} onChange={handleCurrency} />
         </Section>
 
-        <Section title="App language">
-          <FlagSelect options={LANGUAGES} value={language} onChange={handleLanguage} />
+        <Section title={t('settings.language')}>
+          <FlagSelect options={LANGUAGES} value={lang} onChange={handleLanguage} />
         </Section>
 
         <div className="pt-2 space-y-2 text-sm text-gray-500 dark:text-gray-400">
-          <p className="text-gray-700 dark:text-gray-300 font-medium text-sm">Account</p>
+          <p className="text-gray-700 dark:text-gray-300 font-medium text-sm">{t('settings.account')}</p>
           <div className="flex justify-between py-1">
-            <span>Name</span>
+            <span>{t('settings.name')}</span>
             <span className="text-gray-900 dark:text-gray-100 font-medium">{user?.name}</span>
           </div>
           <div className="flex justify-between py-1">
-            <span>Email</span>
+            <span>{t('settings.email')}</span>
             <span className="text-gray-900 dark:text-gray-100 font-medium">{user?.email}</span>
           </div>
         </div>
