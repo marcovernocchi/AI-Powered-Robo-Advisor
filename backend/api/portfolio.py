@@ -49,7 +49,9 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
     holdings_out = []
     total_value = 0.0
     for h in holdings:
-        current_price = prices.get(h.ticker) or h.avg_buy_price
+        price_data = prices.get(h.ticker, {"price": None, "stale": False})
+        current_price = price_data["price"] or h.avg_buy_price
+        price_stale = price_data["stale"]
         native_currency = get_ticker_currency(h.ticker)
         value_native = h.shares * current_price
         value = convert(value_native, native_currency, display_currency)
@@ -62,6 +64,7 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
             "shares": h.shares,
             "avg_buy_price": h.avg_buy_price,
             "current_price": round(current_price, 2),
+            "price_stale": price_stale,
             "native_currency": native_currency,
             "value": round(value, 2),
             "pnl_pct": round(pnl_pct, 2),

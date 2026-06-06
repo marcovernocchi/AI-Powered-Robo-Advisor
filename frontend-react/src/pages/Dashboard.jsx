@@ -47,30 +47,39 @@ function riskColor(score) {
   return 'red'
 }
 
-import { getMarketHistory } from '../api/client'
+import { getMarketHistory, getDividends } from '../api/client'
 
 async function buildChartData(holdings, period) {
   if (!holdings?.length) return []
 
-  const histories = await Promise.all(
-    holdings.map((h) =>
-      getMarketHistory(h.ticker, period.api)
-        .then((r) => ({
-          shares: h.shares,
-          avgBuyPrice: h.avg_buy_price,
-          currentPrice: h.current_price,
-          purchaseDate: h.purchase_date ?? null,
-          data: r.data,
-        }))
-        .catch(() => ({
-          shares: h.shares,
-          avgBuyPrice: h.avg_buy_price,
-          currentPrice: h.current_price,
-          purchaseDate: h.purchase_date ?? null,
-          data: [],
-        }))
-    )
-  )
+  const [histories, dividendData] = await Promise.all([
+    Promise.all(
+      holdings.map((h) =>
+        getMarketHistory(h.ticker, period.api)
+          .then((r) => ({
+            shares: h.shares,
+            avgBuyPrice: h.avg_buy_price,
+            currentPrice: h.current_price,
+            purchaseDate: h.purchase_date ?? null,
+            data: r.data,
+          }))
+          .catch(() => ({
+            shares: h.shares,
+            avgBuyPrice: h.avg_buy_price,
+            currentPrice: h.current_price,
+            purchaseDate: h.purchase_date ?? null,
+            data: [],
+          }))
+      )
+    ),
+    Promise.all(
+      holdings.map((h) =>
+        getDividends(h.ticker, h.purchase_date)
+          .then((r) => ({ shares: h.shares, purchaseDate: h.purchase_date, dividends: r.dividends }))
+          .catch(() => ({ shares: h.shares, purchaseDate: h.purchase_date, dividends: [] }))
+      )
+    ),
+  ])
 
   // Initialize all dates in the period to 0
   const byDate = {}
@@ -113,9 +122,26 @@ async function buildChartData(holdings, period) {
     })
   })
 
+  // Build cumulative dividend map: date → total dividends received up to that date
+  const dividendByDate = {}
+  dividendData.forEach(({ shares, purchaseDate, dividends }) => {
+    dividends.forEach(({ date, amount }) => {
+      if (purchaseDate && date < purchaseDate) return
+      // Add dividend to all chart dates >= payment date
+      Object.keys(byDate).forEach((chartDate) => {
+        if (chartDate >= date) {
+          dividendByDate[chartDate] = (dividendByDate[chartDate] ?? 0) + shares * amount
+        }
+      })
+    })
+  })
+
   let sorted = Object.entries(byDate)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, value]) => ({ rawDate: date, Value: parseFloat(value.toFixed(2)) }))
+    .map(([date, value]) => ({
+      rawDate: date,
+      Value: parseFloat((value + (dividendByDate[date] ?? 0)).toFixed(2)),
+    }))
 
   if (period.months !== null) {
     const cutoff = new Date()
@@ -158,13 +184,16 @@ export default function Dashboard() {
 
   const loadPortfolio = useCallback(async (tab, period) => {
     setChartLoading(true)
+    setChartData([])
     try {
       const data = tab === 'aggregated'
         ? await getPortfolio()
         : await getPortfolioById(tab)
       setPortfolioData(data)
-      const chart = await buildChartData(data.holdings, period)
-      setChartData(chart)
+      if (data.holdings?.length) {
+        const chart = await buildChartData(data.holdings, period)
+        setChartData(chart)
+      }
     } catch (e) {
       console.error(e)
     } finally {
@@ -178,11 +207,18 @@ export default function Dashboard() {
         const [list, data] = await Promise.all([getPortfolioList(), getPortfolio()])
         setPortfolioList(list)
         setPortfolioData(data)
-        const chart = await buildChartData(data.holdings, selectedPeriod)
-        setChartData(chart)
+        setLoading(false)
+        if (data.holdings?.length) {
+          setChartLoading(true)
+          try {
+            const chart = await buildChartData(data.holdings, selectedPeriod)
+            setChartData(chart)
+          } finally {
+            setChartLoading(false)
+          }
+        }
       } catch (e) {
         console.error(e)
-      } finally {
         setLoading(false)
       }
     }
@@ -369,7 +405,9 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
-              {(() => {
+              {chartLoading && chartData.length === 0 ? (
+                <div className="h-56 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse mt-2" />
+              ) : (() => {
                 const vals = chartData.map((d) => d.Value)
                 const lo = Math.min(...vals)
                 const hi = Math.max(...vals)

@@ -29,17 +29,39 @@ COLUMN_ALIASES = {
 }
 
 ASSET_TYPE_MAP = {
-    'azionario':       'security',
+    # Equity (azioni singole)
+    'equity':          'equity',
+    'azionario':       'equity',
+    'azione':          'equity',
+    'azioni':          'equity',
+    'stock':           'equity',
+    'security':        'equity',
+    # ETF azionario
+    'etf_azionario':   'etf_equity',
+    'etf_equity':      'etf_equity',
+    'etf_azionari':    'etf_equity',
+    # ETF obbligazionario
+    'etf_obbligazionario': 'etf_bond',
+    'etf_bond':        'etf_bond',
+    'etf_obblig':      'etf_bond',
+    # Bond singoli
     'obbligazionario': 'bond',
     'obbligazione':    'bond',
+    'obbligazioni':    'bond',
     'bond':            'bond',
+    # Crypto
     'crypto':          'crypto',
     'criptovaluta':    'crypto',
+    'cryptocurrency':  'crypto',
+    # Commodity
     'materia_prima':   'commodity',
+    'materie_prime':   'commodity',
     'commodity':       'commodity',
+    # Cash
     'cash':            'cash',
     'liquidita':       'cash',
     'liquidità':       'cash',
+    'contante':        'cash',
 }
 
 
@@ -141,6 +163,40 @@ Example: {{"ticker": "Ticker", "isin": "ISIN", "shares": "Quantità", "avg_buy_p
     }
 
 
+def ai_classify_asset_types(tickers: list[str]) -> dict[str, str]:
+    """Ask Groq to classify tickers/ISINs into asset types."""
+    from groq import Groq
+
+    valid_types = {'equity', 'etf_equity', 'etf_bond', 'bond', 'crypto', 'commodity', 'cash'}
+
+    prompt = f"""You are a financial data classifier. Classify each ticker or ISIN into one of these asset types:
+- equity: single stocks (e.g. AAPL, ENI.MI, MSFT, ENEL.MI)
+- etf_equity: equity/stock ETFs (e.g. VWCE.DE, SPY, IWDA.AS, SWDA.MI)
+- etf_bond: bond/fixed income ETFs (e.g. AGGH, BND, TLT, VAGF.MI, XGLE.MI)
+- bond: individual bonds or BTPs (e.g. IT0001278511, BTP2030)
+- crypto: cryptocurrencies (e.g. BTC-USD, ETH-USD)
+- commodity: commodity ETFs or futures (e.g. GLD, USO)
+- cash: cash or money market funds
+
+Tickers to classify: {tickers}
+
+Return ONLY a valid JSON object mapping each ticker to its type.
+Example: {{"AAPL": "equity", "VWCE.DE": "etf_equity", "TLT": "etf_bond"}}"""
+
+    client = Groq(api_key=settings.groq_api_key)
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500,
+        temperature=0.0,
+    )
+
+    content = response.choices[0].message.content
+    start, end = content.find('{'), content.rfind('}') + 1
+    result = json.loads(content[start:end])
+    return {ticker: atype if atype in valid_types else 'equity' for ticker, atype in result.items()}
+
+
 def smart_detect_columns(df: pd.DataFrame) -> dict:
     """Try AI detection first, fall back to alias matching."""
     try:
@@ -172,7 +228,7 @@ def resolve_ticker(row, mapping):
 class BulkHolding(BaseModel):
     ticker: str
     asset_name: Optional[str] = None
-    asset_type: str = 'security'
+    asset_type: str = 'equity'
     shares: float
     avg_buy_price: float
     purchase_date: Optional[str] = None
@@ -252,10 +308,10 @@ async def import_preview(
             if not pd.isna(raw):
                 name = str(raw).strip()
 
-        asset_type = 'security'
+        asset_type = 'equity'
         if 'asset_type' in mapping:
             raw = str(row[mapping['asset_type']]).lower().strip().replace(' ', '_')
-            asset_type = ASSET_TYPE_MAP.get(raw, 'security')
+            asset_type = ASSET_TYPE_MAP.get(raw, 'equity')
 
         date_str = None
         if 'purchase_date' in mapping:
@@ -285,6 +341,15 @@ async def import_preview(
 
     if not rows:
         raise HTTPException(status_code=422, detail="No valid rows found in the file.")
+
+    if 'asset_type' not in mapping:
+        try:
+            tickers = [r['ticker'] for r in rows]
+            classifications = ai_classify_asset_types(tickers)
+            for r in rows:
+                r['asset_type'] = classifications.get(r['ticker'], 'equity')
+        except Exception:
+            pass
 
     return {'rows': rows, 'total': len(rows)}
 

@@ -87,6 +87,10 @@ export const getMarketHistory = (ticker, period = '1y', startDate = null) => {
   if (startDate) params.set('start_date', startDate)
   return request(`/market/history/${ticker}?${params}`)
 }
+export const getDividends = (ticker, startDate = null) => {
+  const params = startDate ? `?start_date=${startDate}` : ''
+  return request(`/market/dividends/${ticker}${params}`)
+}
 export const getStockInfo = (ticker) => request(`/market/info/${ticker}`)
 export const getStockPrice = (ticker) => request(`/market/price/${ticker}`)
 export const searchAssets = (q) => request(`/market/search?q=${encodeURIComponent(q)}`)

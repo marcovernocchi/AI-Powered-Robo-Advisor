@@ -1,6 +1,6 @@
 import requests
 from fastapi import APIRouter, Query
-from backend.services.market_data import get_price_history, get_stock_info, get_current_price
+from backend.services.market_data import get_price_history, get_stock_info, get_current_price, get_dividend_history
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -44,6 +44,16 @@ def search(q: str = Query(..., min_length=1)):
         ]
     except Exception as e:
         return []
+
+
+@router.get("/dividends/{ticker}")
+def dividends(ticker: str, start_date: str = Query(default=None)):
+    df = get_dividend_history(ticker.upper(), start_date=start_date)
+    if df.empty:
+        return {"ticker": ticker.upper(), "dividends": []}
+    records = df.reset_index().rename(columns={"Date": "date", "Dividend": "amount"})
+    records["date"] = records["date"].dt.strftime("%Y-%m-%d")
+    return {"ticker": ticker.upper(), "dividends": records.to_dict(orient="records")}
 
 
 @router.get("/info/{ticker}")

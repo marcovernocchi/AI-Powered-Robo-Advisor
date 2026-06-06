@@ -8,6 +8,14 @@ import { useLang } from '../context/LangContext'
 
 const PERIODS = ['1mo', '3mo', '6mo', '1y', '2y', '5y']
 
+function formatDate(dateStr, period) {
+  const d = new Date(dateStr)
+  if (period === '1mo' || period === '3mo') {
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+  }
+  return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+}
+
 export default function Market() {
   const { t } = useLang()
   const [input, setInput] = useState('')
@@ -40,7 +48,7 @@ export default function Market() {
       setChartData(
         histData.data
           .map((row) => ({
-            date: (row.Date ?? row.Datetime ?? '').split('T')[0],
+            date: formatDate((row.Date ?? row.Datetime ?? '').split('T')[0], period),
             Price: parseFloat((row.Close ?? 0).toFixed(2)),
           }))
           .filter((r) => r.date)
@@ -60,7 +68,7 @@ export default function Market() {
       setChartData(
         histData.data
           .map((row) => ({
-            date: (row.Date ?? row.Datetime ?? '').split('T')[0],
+            date: formatDate((row.Date ?? row.Datetime ?? '').split('T')[0], period),
             Price: parseFloat((row.Close ?? 0).toFixed(2)),
           }))
           .filter((r) => r.date)
@@ -120,20 +128,20 @@ export default function Market() {
             <Title>{t('market.keyMetrics')}</Title>
             <div className="mt-3 space-y-2 text-sm">
               {[
-                [t('market.marketCap'), info.marketCap ? `$${(info.marketCap / 1e9).toFixed(2)}B` : null],
-                [t('market.peRatio'), info.trailingPE?.toFixed(2)],
-                [t('market.weekHigh'), info.fiftyTwoWeekHigh ? `$${info.fiftyTwoWeekHigh.toFixed(2)}` : null],
-                [t('market.weekLow'), info.fiftyTwoWeekLow ? `$${info.fiftyTwoWeekLow.toFixed(2)}` : null],
-                [t('market.dividendYield'), info.dividendYield ? `${(info.dividendYield * 100).toFixed(2)}%` : null],
-                [t('market.beta'), info.beta?.toFixed(2)],
-              ]
-                .filter(([, v]) => v != null)
-                .map(([label, value]) => (
-                  <div key={label} className="flex justify-between">
-                    <span className="text-gray-400">{label}</span>
-                    <span className="font-medium">{value}</span>
-                  </div>
-                ))}
+                [t('market.marketCap'), info.market_cap ? `$${(info.market_cap / 1e9).toFixed(2)}B` : null],
+                [t('market.peRatio'), info.pe_ratio?.toFixed(2) ?? null],
+                [t('market.weekHigh'), info['52w_high'] ? `$${info['52w_high'].toFixed(2)}` : null],
+                [t('market.weekLow'), info['52w_low'] ? `$${info['52w_low'].toFixed(2)}` : null],
+                [t('market.dividendYield'), info.dividend_yield ? `${(info.dividend_yield * 100).toFixed(2)}%` : null],
+                [t('market.beta'), info.beta?.toFixed(2) ?? null],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between">
+                  <span className="text-gray-400">{label}</span>
+                  <span className={`font-medium ${!value ? 'text-gray-300 dark:text-gray-600' : ''}`}>
+                    {value ?? 'N/A'}
+                  </span>
+                </div>
+              ))}
             </div>
           </Card>
         </Grid>
@@ -169,6 +177,7 @@ export default function Market() {
             valueFormatter={(v) => `$${v.toFixed(2)}`}
             showLegend={false}
             curveType="monotone"
+            yAxisWidth={80}
           />
         </Card>
       )}

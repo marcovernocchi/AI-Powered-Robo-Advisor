@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   Card, Title, Text, Button, Badge,
   Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell,
-  Flex,
+  Flex, DonutChart, Legend,
 } from '@tremor/react'
 import { getPortfolio, getPortfolioList, deleteHolding, optimizePortfolio } from '../api/client'
 import AddTransactionModal from '../components/AddTransactionModal'
@@ -23,6 +23,7 @@ export default function Portfolio() {
   const [optError, setOptError]         = useState('')
   const [sortKey, setSortKey]           = useState(null)
   const [sortDir, setSortDir]           = useState('desc')
+  const [chartView, setChartView]       = useState('type')
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
@@ -81,6 +82,33 @@ export default function Portfolio() {
 
   const firstPortfolioId = portfolioList[0]?.id
 
+  const ASSET_TYPE_LABEL = {
+    equity:     'Equity',
+    etf_equity: 'ETF Azionario',
+    etf_bond:   'ETF Obbligazionario',
+    bond:       'Bond',
+    crypto:     'Crypto',
+    commodity:  'Commodity',
+    cash:       'Cash',
+    security:   'Equity',
+  }
+
+  const CHART_COLORS = ['blue', 'cyan', 'violet', 'amber', 'emerald', 'orange', 'rose', 'indigo']
+
+  const chartDataByType = Object.entries(
+    holdings.reduce((acc, h) => {
+      const label = ASSET_TYPE_LABEL[h.asset_type] ?? h.asset_type
+      acc[label] = (acc[label] ?? 0) + h.value
+      return acc
+    }, {})
+  ).map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
+   .sort((a, b) => b.value - a.value)
+
+  const chartDataByTicker = [...holdings]
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10)
+    .map((h) => ({ name: h.ticker, value: Math.round(h.value * 100) / 100 }))
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -103,6 +131,52 @@ export default function Portfolio() {
           </button>
         </div>
       </div>
+
+      {/* Allocation chart */}
+      {holdings.length > 0 && (
+        <Card className="ring-0 border-0 dark:bg-gray-900">
+          <Flex>
+            <Title>Allocation</Title>
+            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setChartView('type')}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  chartView === 'type'
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Per tipo
+              </button>
+              <button
+                onClick={() => setChartView('ticker')}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  chartView === 'ticker'
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Per asset
+              </button>
+            </div>
+          </Flex>
+          <div className="flex flex-col md:flex-row items-center gap-6 mt-4">
+            <DonutChart
+              data={chartView === 'type' ? chartDataByType : chartDataByTicker}
+              category="value"
+              index="name"
+              colors={CHART_COLORS}
+              valueFormatter={(v) => fmtCurrency(v)}
+              className="w-48 h-48 shrink-0"
+            />
+            <Legend
+              categories={(chartView === 'type' ? chartDataByType : chartDataByTicker).map((d) => d.name)}
+              colors={CHART_COLORS}
+              className="flex-1"
+            />
+          </div>
+        </Card>
+      )}
 
       {/* Holdings table */}
       <Card className="ring-0 border-0 dark:bg-gray-900">
@@ -145,11 +219,16 @@ export default function Portfolio() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs text-gray-400 capitalize">{h.asset_type ?? 'security'}</span>
+                    <span className="text-xs text-gray-400">{ASSET_TYPE_LABEL[h.asset_type] ?? h.asset_type}</span>
                   </TableCell>
                   <TableCell>{h.shares}</TableCell>
                   <TableCell>{fmtCurrency(h.avg_buy_price, h.native_currency)}</TableCell>
-                  <TableCell>{fmtCurrency(h.current_price, h.native_currency)}</TableCell>
+                  <TableCell>
+                    <span>{fmtCurrency(h.current_price, h.native_currency)}</span>
+                    {h.price_stale && (
+                      <span title="Prezzo non aggiornato (dati in cache)" className="ml-1 text-xs text-amber-400">⚠</span>
+                    )}
+                  </TableCell>
                   <TableCell>{fmtCurrency(h.value)}</TableCell>
                   <TableCell>
                     <Badge color={h.pnl_pct >= 0 ? 'emerald' : 'red'}>

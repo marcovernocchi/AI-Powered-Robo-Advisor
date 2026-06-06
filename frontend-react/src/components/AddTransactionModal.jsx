@@ -10,21 +10,25 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
   const { t } = useLang()
 
   const ASSET_TYPES = [
-    { value: 'security',  label: t('modal.security') },
-    { value: 'crypto',    label: t('modal.crypto') },
+    { value: 'equity',    label: t('modal.equity') },
+    { value: 'etf_equity', label: t('modal.etfEquity') },
+    { value: 'etf_bond',  label: t('modal.etfBond') },
     { value: 'bond',      label: t('modal.bond') },
-    { value: 'cash',      label: t('modal.cash') },
+    { value: 'crypto',    label: t('modal.crypto') },
     { value: 'commodity', label: t('modal.commodities') },
+    { value: 'cash',      label: t('modal.cash') },
   ]
 
   const SEARCH_PLACEHOLDER = {
-    security:  'Ticker, ISIN, Stock, ETF, …',
-    crypto:    'e.g. BTC-USD, ETH-USD, …',
-    bond:      'Ticker, ISIN, Bond ETF, …',
-    cash:      'Currency or label (e.g. EUR)',
-    commodity: 'Ticker, ISIN, e.g. GLD, USO, …',
+    equity:    'Ticker o nome (es. AAPL, ENI, …)',
+    etf_equity: 'Ticker ETF (es. VWCE, SPY, IWDA, …)',
+    etf_bond:  'Ticker ETF (es. AGGH, BND, TLT, …)',
+    bond:      'Ticker o ISIN obbligazione',
+    crypto:    'es. BTC-USD, ETH-USD, …',
+    commodity: 'Ticker (es. GLD, USO, …)',
+    cash:      'Valuta o etichetta (es. EUR)',
   }
-  const [assetType, setAssetType]     = useState('security')
+  const [assetType, setAssetType]     = useState('equity')
   const [portfolioId, setPortfolioId] = useState(defaultPortfolioId ?? portfolioList[0]?.id ?? '')
   const [txType, setTxType]           = useState('buy')
   const [searchQuery, setSearchQuery] = useState('')

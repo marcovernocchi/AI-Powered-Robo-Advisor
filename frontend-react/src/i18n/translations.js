@@ -67,7 +67,9 @@ const en = {
   },
   modal: {
     addTransaction: 'Add transaction',
-    security: 'Security',
+    equity: 'Equity',
+    etfEquity: 'Equity ETF',
+    etfBond: 'Bond ETF',
     crypto: 'Crypto',
     bond: 'Bond',
     cash: 'Cash',
@@ -260,7 +262,9 @@ const it = {
   },
   modal: {
     addTransaction: 'Aggiungi transazione',
-    security: 'Titolo',
+    equity: 'Equity',
+    etfEquity: 'ETF Azionario',
+    etfBond: 'ETF Obbligazionario',
     crypto: 'Crypto',
     bond: 'Obbligazione',
     cash: 'Contante',

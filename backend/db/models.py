@@ -59,3 +59,11 @@ class Advice(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="advice_history")
+
+
+class PriceCache(Base):
+    __tablename__ = "price_cache"
+
+    ticker = Column(String, primary_key=True)
+    price = Column(Float, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow)
