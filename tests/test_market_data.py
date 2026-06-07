@@ -22,6 +22,7 @@ def test_get_stock_info_structure():
 
 
 def test_get_multiple_prices_handles_errors():
-    with patch("backend.services.market_data.get_current_price", side_effect=Exception("API error")):
-        result = get_multiple_prices(["AAPL"])
-    assert result["AAPL"] is None
+    with patch("backend.services.market_data._fetch_live_price", return_value=None):
+        with patch("backend.services.market_data._get_price_cache", return_value=(None, False, True)):
+            result = get_multiple_prices(["AAPL"])
+    assert result["AAPL"]["price"] is None

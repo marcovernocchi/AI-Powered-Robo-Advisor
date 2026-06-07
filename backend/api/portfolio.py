@@ -95,7 +95,7 @@ def list_portfolios(current_user: User = Depends(get_current_user), db: Session 
 def get_portfolio_aggregated(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     portfolios = db.query(Portfolio).filter(
         Portfolio.user_id == current_user.id,
-        Portfolio.include_in_aggregated == True,
+        Portfolio.include_in_aggregated == True,  # noqa: E712
     ).all()
     display_currency = current_user.display_currency or 'USD'
     all_holdings = [h for p in portfolios for h in p.holdings]
@@ -302,7 +302,7 @@ def optimize(
             series = hist["Close"]
             series.index = series.index.normalize().tz_localize(None)
             price_series[ticker] = series
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             fetch_errors.append(ticker)
             print(f"[optimize] failed to fetch history for {ticker}: {exc}")
 
