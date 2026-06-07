@@ -40,9 +40,11 @@ jobs:
           git add backend/api/ backend/models/
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "feat(agent): add missing docstrings via Groq LLM"
-          git push origin agent/add-docstrings
+          git fetch origin agent/add-docstrings 2>/dev/null || true
+          git pull origin agent/add-docstrings --rebase --no-edit 2>/dev/null || true
+          git push --force-with-lease origin agent/add-docstrings
           gh pr create \
             --title "feat(agent): add missing docstrings via Groq LLM" \
             --body "Automated PR: public functions in backend/api/ and backend/models/ without docstrings have been documented by the Groq AI agent (llama-3.3-70b-versatile)." \
             --base main \
-            --head agent/add-docstrings
+            --head agent/add-docstrings || true
