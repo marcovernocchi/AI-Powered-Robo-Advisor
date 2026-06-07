@@ -1,4 +1,4 @@
-import requests
+import yfinance as yf
 from fastapi import APIRouter, Query
 from backend.services.market_data import get_price_history, get_stock_info, get_current_price, get_dividend_history
 
@@ -11,7 +11,7 @@ PERIODS = ["5d", "1mo", "3mo", "6mo", "ytd", "1y", "2y", "5y", "max"]
 def price(ticker: str):
     try:
         return {"ticker": ticker.upper(), "price": get_current_price(ticker)}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
 
 
@@ -22,28 +22,6 @@ def history(ticker: str, period: str = Query(default="1y", enum=PERIODS), start_
         "ticker": ticker.upper(),
         "data": hist.reset_index().to_dict(orient="records"),
     }
-
-
-@router.get("/search")
-def search(q: str = Query(..., min_length=1)):
-    try:
-        url = "https://query1.finance.yahoo.com/v1/finance/search"
-        params = {"q": q, "quotesCount": 8, "newsCount": 0, "enableFuzzyQuery": "false"}
-        headers = {"User-Agent": "Mozilla/5.0"}
-        resp = requests.get(url, params=params, headers=headers, timeout=5)
-        quotes = resp.json().get("quotes", [])
-        return [
-            {
-                "ticker": item["symbol"],
-                "name": item.get("longname") or item.get("shortname", item["symbol"]),
-                "exchange": item.get("fullExchangeName") or item.get("exchange", ""),
-                "type": item.get("quoteType", ""),
-            }
-            for item in quotes
-            if item.get("symbol")
-        ]
-    except Exception as e:
-        return []
 
 
 @router.get("/dividends/{ticker}")
@@ -83,5 +61,5 @@ def search(q: str = Query(default="", min_length=1, max_length=20)):
             if symbol and qtype in _ALLOWED_TYPES:
                 results.append({"symbol": symbol, "name": name, "type": qtype})
         return results[:8]
-    except Exception:
+    except Exception:  # noqa: BLE001
         return []
