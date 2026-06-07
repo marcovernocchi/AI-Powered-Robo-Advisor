@@ -1,4 +1,4 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from backend.services.market_data import get_stock_info, get_multiple_prices
 
 
