@@ -1,5 +1,7 @@
 # AI-Powered-Robo-Advisor
 
+![CI](https://github.com/marcovernocchi/AI-Powered-Robo-Advisor/actions/workflows/ci.yml/badge.svg)
+
 A personalized investment advisory platform combining machine learning portfolio optimization, real-time market data, and AI-generated financial advice via an LLM. Built as a university project for Programming in Finance II (2026).
 
 ## Features
