@@ -3,6 +3,9 @@ name: AI Agent — Add Docstrings
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   add-docstrings:
     runs-on: ubuntu-latest
