@@ -1,0 +1,45 @@
+name: AI Agent — Add Docstrings
+
+on:
+  workflow_dispatch:
+
+jobs:
+  add-docstrings:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install groq
+        run: pip install groq
+
+      - name: Run docstring agent
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python scripts/add_docstrings.py
+
+      - name: Commit and open PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b agent/add-docstrings
+          git add backend/api/ backend/models/
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "feat(agent): add missing docstrings via Groq LLM"
+          git push origin agent/add-docstrings
+          gh pr create \
+            --title "feat(agent): add missing docstrings via Groq LLM" \
+            --body "Automated PR: public functions in backend/api/ and backend/models/ without docstrings have been documented by the Groq AI agent (llama-3.3-70b-versatile)." \
+            --base main \
+            --head agent/add-docstrings
