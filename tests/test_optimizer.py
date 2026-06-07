@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 import pandas as pd
 from backend.models.optimizer import optimize_portfolio
