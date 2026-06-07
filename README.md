@@ -22,7 +22,7 @@ A personalized investment advisory platform combining machine learning portfolio
 | LLM | Groq API (Llama 3.3-70B) — free |
 | Frontend (React) | React 18 + Vite + Tremor + Tailwind CSS |
 | Frontend (legacy) | Streamlit + Plotly |
-| Deployment | Azure VPS (Docker) |
+| Deployment | DigitalOcean VPS (Docker) |
 
 ## Project Criteria Satisfied
 
@@ -32,7 +32,7 @@ A personalized investment advisory platform combining machine learning portfolio
 - **Non-trivial database** — SQL with 4 related tables (users, portfolios, holdings, advice)
 - **Real-time data** — Live prices via yfinance
 - **Own API + auth** — FastAPI REST API with JWT authentication
-- **Cloud infrastructure** — Deployed on Azure VPS
+- **Cloud infrastructure** — Deployed on DigitalOcean VPS
 
 ## Installation
 
@@ -45,8 +45,8 @@ A personalized investment advisory platform combining machine learning portfolio
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/paperellagialla11/AI-Powered-Robo-Advisor-Platform-.git
-cd AI-Powered-Robo-Advisor-Platform-
+git clone https://github.com/marcovernocchi/AI-Powered-Robo-Advisor.git
+cd AI-Powered-Robo-Advisor
 
 # 2. Create and activate a virtual environment
 python -m venv .venv
@@ -144,15 +144,15 @@ PYTHONPATH=. pytest tests/ -v
 └── CLAUDE.md             # Claude Code instructions
 ```
 
-## Deployment on Azure (Student Account)
+## Deployment on DigitalOcean
 
-1. Create a **B1s VM** (1 vCPU, 1 GB RAM) on Azure for Students ($100 free credits)
-2. Install Docker on the VM
+1. Create a **Droplet** (1 vCPU, 1 GB RAM) on DigitalOcean
+2. Install Docker on the Droplet
 3. Clone the repo, create `.env`, then:
    ```bash
    docker compose up -d
    ```
-4. Open ports 8000 (API) and 3000 (React frontend) in the Azure network security group
+4. Open ports 8000 (API) and 3000 (React frontend) in the DigitalOcean firewall settings
 
 ## Academic Context
 
