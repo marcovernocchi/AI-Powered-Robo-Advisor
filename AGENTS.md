@@ -16,7 +16,7 @@ An AI-powered robo-advisor platform that provides personalized investment advice
 | LLM | Groq API (Llama 3.3-70B) — free tier |
 | Frontend (primary) | React 18 + Vite + Tremor + Tailwind CSS |
 | Frontend (legacy) | Streamlit + Plotly |
-| Deployment | Azure (VPS) + Docker |
+| Deployment | DigitalOcean (VPS) + Docker |
 
 ## Repository Structure
 

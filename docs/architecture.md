@@ -11,7 +11,7 @@ Browser → React Frontend (port 3000)
   (SQLAlchemy)   (market data)  (LLM advice)
 ```
 
-The legacy Streamlit frontend (port 8501) communicates with the same backend via the `requests` library and is still functional.
+The legacy Streamlit frontend (port 8501) communicates with the same backend via the `requests` library and is still functional locally, but is not used for deployment.
 
 ## Frontend (React)
 
