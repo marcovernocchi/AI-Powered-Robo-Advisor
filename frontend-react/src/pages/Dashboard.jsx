@@ -327,6 +327,14 @@ export default function Dashboard() {
               >
                 {t('dashboard.addAccount')}
               </button>
+              {activeTab !== 'aggregated' && portfolioList.find((p) => p.id === activeTab) && (
+                <button
+                  onClick={() => handleDeletePortfolio(portfolioList.find((p) => p.id === activeTab))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 text-red-500 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                >
+                  Delete account
+                </button>
+              )}
               <button
                 onClick={() => { setSettingsDetail(null); setShowSettings(true) }}
                 className="p-2 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-lg"
@@ -433,7 +441,7 @@ export default function Dashboard() {
                 return (
                   <div className={chartLoading ? 'opacity-40 pointer-events-none' : ''}>
                     <AreaChart
-                      className="h-56"
+                      className="h-56 [&_.recharts-cartesian-axis-tick_text]:dark:fill-white [&_.recharts-cartesian-axis-tick_text]:text-xs"
                       data={chartData}
                       index="date"
                       categories={['Value']}
@@ -644,14 +652,16 @@ export default function Dashboard() {
                     </div>
                     <button
                       onClick={() => handleToggleAggregated(settingsDetail, !settingsDetail.include_in_aggregated)}
-                      className={`w-11 h-6 rounded-full transition-colors relative ${
+                      className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${
                         settingsDetail.include_in_aggregated
                           ? 'bg-gray-900 dark:bg-gray-100'
                           : 'bg-gray-200 dark:bg-gray-700'
                       }`}
                     >
-                      <span className={`absolute top-0.5 w-5 h-5 bg-white dark:bg-gray-900 rounded-full shadow transition-transform ${
-                        settingsDetail.include_in_aggregated ? 'translate-x-5' : 'translate-x-0.5'
+                      <span className={`absolute top-0.5 w-5 h-5 rounded-full shadow transition-all duration-200 ${
+                        settingsDetail.include_in_aggregated
+                          ? 'left-6 bg-white dark:bg-gray-900'
+                          : 'left-0.5 bg-white dark:bg-gray-400'
                       }`} />
                     </button>
                   </div>

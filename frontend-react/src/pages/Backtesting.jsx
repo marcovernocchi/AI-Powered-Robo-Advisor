@@ -21,6 +21,17 @@ function fmtEur(value) {
   return value.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
 }
 
+function makeCompactFormatter(lang) {
+  const bln = lang === 'it' ? 'MLD' : 'BLN'
+  return (v) => {
+    const abs = Math.abs(v)
+    if (abs >= 1e9) return `${(v / 1e9).toFixed(2)}${bln}€`
+    if (abs >= 1e6) return `${(v / 1e6).toFixed(2)}MLN€`
+    if (abs >= 1e3) return `${(v / 1e3).toFixed(2)}K€`
+    return `${v.toFixed(0)}€`
+  }
+}
+
 function MetricCard({ label, value, highlight }) {
   const color =
     highlight === 'positive' ? 'text-emerald-500' :
@@ -35,8 +46,9 @@ function MetricCard({ label, value, highlight }) {
 }
 
 export default function Backtesting() {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const bt = (key) => t(`backtesting.${key}`)
+  const fmtCompact = makeCompactFormatter(lang)
 
   // --- Form state ---
   const [assets, setAssets] = useState([
@@ -179,9 +191,14 @@ export default function Backtesting() {
   }
 
   // Build chart data from result
+  const totalDays = result ? result.portfolio_series.length : 0
+  const dateFmt = totalDays > 365 * 2
+    ? (s) => { const d = new Date(s); return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) }
+    : (s) => { const d = new Date(s); return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) }
+
   const chartData = result
     ? result.portfolio_series.map((p) => ({
-        date: p.date,
+        date: dateFmt(p.date),
         [bt('portfolio')]: Math.round(p.portfolio_value * 100) / 100,
         ...(p.benchmark_value !== null ? { [bt('benchmarkLabel')]: Math.round(p.benchmark_value * 100) / 100 } : {}),
       }))
@@ -223,7 +240,7 @@ export default function Backtesting() {
                   disabled={loadingPortfolio}
                   className="text-xs text-blue-500 hover:text-blue-600 font-medium disabled:opacity-50 transition-colors"
                 >
-                  {loadingPortfolio ? '…' : '↓ Usa il mio portafoglio'}
+                  {loadingPortfolio ? '…' : bt('loadMyPortfolio')}
                 </button>
               </div>
 
@@ -351,15 +368,15 @@ export default function Backtesting() {
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className={labelClass}>{bt('txCost')}</label>
+                  <label className={labelClass}>Tx cost<br />(bps)</label>
                   <input type="number" value={txCost} onChange={(e) => setTxCost(e.target.value)} min="0" step="1" className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>{bt('ter')}</label>
+                  <label className={labelClass}>Annual TER<br />(bps)</label>
                   <input type="number" value={ter} onChange={(e) => setTer(e.target.value)} min="0" step="1" className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>{bt('spread')}</label>
+                  <label className={labelClass}>Spread<br />(bps)</label>
                   <input type="number" value={spread} onChange={(e) => setSpread(e.target.value)} min="0" step="1" className={inputClass} />
                 </div>
               </div>
@@ -424,16 +441,16 @@ export default function Backtesting() {
                 <h2 className="font-semibold text-sm">{bt('sectionResults')}</h2>
                 {thinned.length > 1 && (
                   <AreaChart
-                    className="h-64"
+                    className="h-64 [&_.recharts-cartesian-axis-tick_text]:dark:fill-white [&_.recharts-cartesian-axis-tick_text]:text-xs"
                     data={thinned}
                     index="date"
                     categories={chartCategories}
                     colors={chartColors}
-                    valueFormatter={(v) => fmtEur(v)}
+                    valueFormatter={fmtCompact}
                     showLegend={chartCategories.length > 1}
                     showXAxis
                     showYAxis
-                    yAxisWidth={80}
+                    yAxisWidth={58}
                     curveType="linear"
                   />
                 )}
