@@ -2,6 +2,14 @@
 
 This project is organized as an **agentic project** where AI agents (primarily Claude Code via the Anthropic API) contribute meaningfully to development. This file tells any AI agent how to navigate and work in this codebase.
 
+## Automated Agents
+
+| Agent | Trigger | Script | What it does |
+|---|---|---|---|
+| Add Docstrings | Manual (`workflow_dispatch`) | `scripts/add_docstrings.py` | Scans `backend/api/` and `backend/models/` for public functions without docstrings, generates them via Groq, opens a PR |
+| PR Summary | PR opened / reopened | `scripts/summarize_pr.py` | Reads the PR diff, generates a markdown summary via Groq, posts it as a comment on the PR |
+
+
 ## Project Overview
 
 An AI-powered robo-advisor platform that provides personalized investment advice using machine learning and an LLM. Users register, complete a risk questionnaire, build a portfolio, and receive AI-generated advice.
