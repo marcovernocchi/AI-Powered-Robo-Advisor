@@ -59,7 +59,7 @@ def search(q: str = Query(default="", min_length=1, max_length=20)):
             qtype  = r.get("quoteType", "")
             name   = r.get("shortname") or r.get("longname") or ""
             if symbol and qtype in _ALLOWED_TYPES:
-                results.append({"symbol": symbol, "name": name, "type": qtype})
+                results.append({"ticker": symbol, "name": name, "type": qtype})
         return results[:8]
     except Exception:  # noqa: BLE001
         return []
