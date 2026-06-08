@@ -93,7 +93,10 @@ export default function Portfolio() {
     security:   'Equity',
   }
 
-  const CHART_COLORS = ['blue', 'cyan', 'violet', 'amber', 'emerald', 'orange', 'rose', 'indigo']
+  const CHART_COLORS = [
+    'emerald', 'blue', 'violet', 'amber', 'cyan', 'orange', 'rose', 'indigo',
+    'teal', 'yellow', 'purple', 'sky', 'lime', 'fuchsia', 'red', 'green',
+  ]
 
   const chartDataByType = Object.entries(
     holdings.reduce((acc, h) => {
@@ -104,10 +107,15 @@ export default function Portfolio() {
   ).map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
    .sort((a, b) => b.value - a.value)
 
-  const chartDataByTicker = [...holdings]
+  // Aggregate duplicate tickers then sort by value descending — no hard cap
+  const tickerMap = holdings.reduce((acc, h) => {
+    acc[h.ticker] = (acc[h.ticker] ?? 0) + h.value
+    return acc
+  }, {})
+  const chartDataByTicker = Object.entries(tickerMap)
+    .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
     .sort((a, b) => b.value - a.value)
-    .slice(0, 10)
-    .map((h) => ({ name: h.ticker, value: Math.round(h.value * 100) / 100 }))
+    .slice(0, CHART_COLORS.length)  // never exceed palette size
 
   return (
     <div className="space-y-6">
@@ -146,7 +154,7 @@ export default function Portfolio() {
                     : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
-                Per tipo
+                By type
               </button>
               <button
                 onClick={() => setChartView('ticker')}
@@ -156,7 +164,7 @@ export default function Portfolio() {
                     : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
-                Per asset
+                By asset
               </button>
             </div>
           </Flex>

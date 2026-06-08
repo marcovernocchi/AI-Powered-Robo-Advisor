@@ -9,8 +9,12 @@ async function request(path, options = {}) {
 
   const res = await fetch(path, { ...options, headers })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Request failed' }))
-    throw new Error(err.detail || 'Request failed')
+    const err = await res.json().catch(() => null)
+    if (!err) throw new Error(`HTTP ${res.status} – Request failed`)
+    const detail = Array.isArray(err.detail)
+      ? err.detail.map((d) => d.msg ?? JSON.stringify(d)).join('; ')
+      : err.detail
+    throw new Error(detail || `HTTP ${res.status}`)
   }
   return res.json()
 }
@@ -101,3 +105,6 @@ export const getAdviceHistory = () => request('/advice/history')
 
 export const setRiskProfile = (answers) =>
   request('/risk-profile', { method: 'POST', body: JSON.stringify(answers) })
+
+export const runBacktest = (params) =>
+  request('/backtest', { method: 'POST', body: JSON.stringify(params) })

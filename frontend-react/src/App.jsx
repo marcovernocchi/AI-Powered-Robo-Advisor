@@ -9,6 +9,7 @@ import Portfolio from './pages/Portfolio'
 import AIAdvisor from './pages/AIAdvisor'
 import Market from './pages/Market'
 import Settings from './pages/Settings'
+import Backtesting from './pages/Backtesting'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -50,6 +51,7 @@ export default function App() {
                 <Route path="advisor" element={<AIAdvisor />} />
                 <Route path="market" element={<Market />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="backtesting" element={<Backtesting />} />
               </Route>
             </Routes>
           </BrowserRouter>

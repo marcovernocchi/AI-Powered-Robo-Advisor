@@ -13,7 +13,8 @@ export default function Layout() {
     { to: '/',          label: t('nav.netWorth') },
     { to: '/portfolio', label: t('nav.portfolio') },
     { to: '/advisor',   label: t('nav.aiAdvisor') },
-    { to: '/market',    label: t('nav.market') },
+    { to: '/market',       label: t('nav.market') },
+    { to: '/backtesting',  label: t('nav.backtesting') },
   ]
 
   function handleLogout() {
