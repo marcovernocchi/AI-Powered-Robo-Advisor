@@ -8,6 +8,7 @@ This project is organized as an **agentic project** where AI agents (primarily C
 |---|---|---|---|
 | Add Docstrings | Manual (`workflow_dispatch`) | `scripts/add_docstrings.py` | Scans `backend/api/` and `backend/models/` for public functions without docstrings, generates them via Groq, opens a PR |
 | PR Summary | PR opened / reopened | `scripts/summarize_pr.py` | Reads the PR diff, generates a markdown summary via Groq, posts it as a comment on the PR |
+| Ruff Auto-fix | PR opened / synchronize / reopened | — (inline bash) | Runs `ruff check --fix` on `backend/` and `tests/`, commits fixes to the PR branch, comments with the list of fixed files |
 
 
 ## Project Overview
