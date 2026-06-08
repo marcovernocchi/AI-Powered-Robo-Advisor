@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { AreaChart } from '@tremor/react'
-import { runBacktest } from '../api/client'
+import { runBacktest, getPortfolio, getPortfolioById, getPortfolioList } from '../api/client'
 import { useLang } from '../context/LangContext'
 
 const REBALANCE_OPTIONS = [
@@ -53,6 +53,12 @@ export default function Backtesting() {
   const [spread, setSpread] = useState('2')
   const [benchmark, setBenchmark] = useState('SPY')
 
+  // --- Load from portfolio ---
+  const [portfolioList, setPortfolioList] = useState(null)  // null = not fetched yet
+  const [loadingPortfolio, setLoadingPortfolio] = useState(false)
+  const [portfolioWarn, setPortfolioWarn] = useState(null)
+  const [showPortfolioPicker, setShowPortfolioPicker] = useState(false)
+
   // --- Results state ---
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -71,6 +77,72 @@ export default function Backtesting() {
 
   function updateAsset(i, field, value) {
     setAssets(assets.map((a, idx) => idx === i ? { ...a, [field]: value } : a))
+  }
+
+  async function handleOpenPortfolioPicker() {
+    setLoadingPortfolio(true)
+    setPortfolioWarn(null)
+    try {
+      const list = await getPortfolioList()
+      setPortfolioList(list)
+      if (list.length === 1) {
+        await applyPortfolio(list[0].id)
+      } else if (list.length === 0) {
+        setPortfolioWarn('Nessun portafoglio trovato.')
+      } else {
+        setShowPortfolioPicker(true)
+      }
+    } catch {
+      setPortfolioWarn('Impossibile caricare i portafogli.')
+    } finally {
+      setLoadingPortfolio(false)
+    }
+  }
+
+  async function applyPortfolio(portfolioId) {
+    setShowPortfolioPicker(false)
+    setPortfolioWarn(null)
+    setLoadingPortfolio(true)
+    try {
+      const data = portfolioId === 'aggregated'
+        ? await getPortfolio()
+        : await getPortfolioById(portfolioId)
+
+      const holdings = data.holdings ?? []
+      if (holdings.length === 0) {
+        setPortfolioWarn('Il portafoglio selezionato non ha posizioni.')
+        return
+      }
+      const totalValue = data.total_value ?? holdings.reduce((s, h) => s + h.value, 0)
+      if (totalValue === 0) {
+        setPortfolioWarn('Valore totale del portafoglio è zero — impossibile calcolare i pesi.')
+        return
+      }
+
+      // Aggrega più righe dello stesso ticker (es. acquisti multipli)
+      const byTicker = {}
+      for (const h of holdings) {
+        byTicker[h.ticker] = (byTicker[h.ticker] ?? 0) + h.value
+      }
+
+      // Calcola e normalizza i pesi in modo che sommino esattamente a 100
+      const entries = Object.entries(byTicker)
+      const rawTotal = entries.reduce((s, [, v]) => s + v, 0)
+      let newAssets = entries.map(([ticker, value]) => ({
+        ticker,
+        weight: ((value / rawTotal) * 100).toFixed(2),
+      }))
+
+      // Correggi l'errore di arrotondamento sull'ultimo elemento
+      const sumSoFar = newAssets.slice(0, -1).reduce((s, a) => s + parseFloat(a.weight), 0)
+      newAssets[newAssets.length - 1].weight = (100 - sumSoFar).toFixed(2)
+
+      setAssets(newAssets)
+    } catch {
+      setPortfolioWarn('Errore nel caricamento del portafoglio.')
+    } finally {
+      setLoadingPortfolio(false)
+    }
   }
 
   async function handleSubmit(e) {
@@ -143,7 +215,52 @@ export default function Backtesting() {
 
             {/* Portfolio assets */}
             <div className="bg-white dark:bg-gray-900 rounded-xl p-5 space-y-3">
-              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{bt('sectionPortfolio')}</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{bt('sectionPortfolio')}</p>
+                <button
+                  type="button"
+                  onClick={handleOpenPortfolioPicker}
+                  disabled={loadingPortfolio}
+                  className="text-xs text-blue-500 hover:text-blue-600 font-medium disabled:opacity-50 transition-colors"
+                >
+                  {loadingPortfolio ? '…' : '↓ Usa il mio portafoglio'}
+                </button>
+              </div>
+
+              {/* Portfolio picker dropdown */}
+              {showPortfolioPicker && portfolioList && (
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden text-sm">
+                  <button
+                    type="button"
+                    onClick={() => applyPortfolio('aggregated')}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-700 font-medium"
+                  >
+                    Tutti i portafogli (aggregato)
+                  </button>
+                  {portfolioList.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => applyPortfolio(p.id)}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-0"
+                    >
+                      {p.name}
+                      <span className="ml-2 text-xs text-gray-400">{p.holdings_count} asset</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setShowPortfolioPicker(false)}
+                    className="w-full text-left px-3 py-2 text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-xs"
+                  >
+                    Annulla
+                  </button>
+                </div>
+              )}
+
+              {portfolioWarn && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">{portfolioWarn}</p>
+              )}
 
               {assets.map((a, i) => (
                 <div key={i} className="flex gap-2 items-center">

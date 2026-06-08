@@ -35,6 +35,7 @@ export default defineConfig({
       '/market': 'http://localhost:8000',
       '/advice': 'http://localhost:8000',
       '/risk-profile': 'http://localhost:8000',
+      '/backtest': 'http://localhost:8000',
     },
   },
 })
