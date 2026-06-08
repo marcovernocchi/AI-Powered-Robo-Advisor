@@ -9,6 +9,7 @@ from backend.api.portfolio import router as portfolio_router
 from backend.api.import_portfolio import router as import_router
 from backend.api.market import router as market_router
 from backend.api.advice import router as advice_router
+from backend.api.backtesting import router as backtesting_router
 from backend.models.risk import RiskQuestion, calculate_risk_score, risk_label
 
 app = FastAPI(title="AI Robo-Advisor API", version="1.0.0")
@@ -25,6 +26,7 @@ app.include_router(portfolio_router)
 app.include_router(import_router)
 app.include_router(market_router)
 app.include_router(advice_router)
+app.include_router(backtesting_router)
 
 
 @app.on_event("startup")

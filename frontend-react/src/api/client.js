@@ -101,3 +101,6 @@ export const getAdviceHistory = () => request('/advice/history')
 
 export const setRiskProfile = (answers) =>
   request('/risk-profile', { method: 'POST', body: JSON.stringify(answers) })
+
+export const runBacktest = (params) =>
+  request('/backtest', { method: 'POST', body: JSON.stringify(params) })
