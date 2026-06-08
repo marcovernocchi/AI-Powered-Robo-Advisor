@@ -76,6 +76,7 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
 # Must come before /{portfolio_id} routes
 @router.get("/list")
 def list_portfolios(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Retrieves a list of portfolios for the current user, including their holdings and total value."""
     portfolios = db.query(Portfolio).filter(Portfolio.user_id == current_user.id).all()
     display_currency = current_user.display_currency or 'USD'
     result = []
@@ -93,6 +94,7 @@ def list_portfolios(current_user: User = Depends(get_current_user), db: Session 
 
 @router.get("/")
 def get_portfolio_aggregated(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Retrieves the aggregated portfolio for the current user, including holdings and total value in the user's display currency."""
     portfolios = db.query(Portfolio).filter(
         Portfolio.user_id == current_user.id,
         Portfolio.include_in_aggregated == True,  # noqa: E712
@@ -109,6 +111,7 @@ def create_portfolio(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Creates a new portfolio for the current user and returns its id and name."""
     portfolio = Portfolio(user_id=current_user.id, name=data.name)
     db.add(portfolio)
     db.commit()
@@ -122,6 +125,7 @@ def add_holding(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Adds a new holding to a user's portfolio, creating a default portfolio if none exists."""
     if data.portfolio_id:
         portfolio = db.query(Portfolio).filter(
             Portfolio.id == data.portfolio_id,
@@ -166,6 +170,7 @@ def update_holding(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Updates a holding in the database based on the provided data, returning a success message upon completion."""
     user_portfolio_ids = [
         p.id for p in db.query(Portfolio).filter(Portfolio.user_id == current_user.id).all()
     ]
@@ -199,6 +204,7 @@ def delete_holding(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Deletes a holding by ID if it belongs to the current user's portfolios, returning a success message."""
     user_portfolio_ids = [
         p.id for p in db.query(Portfolio).filter(Portfolio.user_id == current_user.id).all()
     ]
@@ -219,6 +225,7 @@ def get_portfolio_by_id(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Retrieves a portfolio by ID for the current user, returning its details and holdings in the user's preferred display currency."""
     portfolio = db.query(Portfolio).filter(
         Portfolio.id == portfolio_id,
         Portfolio.user_id == current_user.id,
@@ -243,6 +250,7 @@ def update_portfolio(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Updates a portfolio with the given ID for the current user, returning the updated portfolio details."""
     portfolio = db.query(Portfolio).filter(
         Portfolio.id == portfolio_id,
         Portfolio.user_id == current_user.id,
@@ -264,6 +272,7 @@ def delete_portfolio(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Deletes a portfolio by ID if it belongs to the current user, raising a 404 error if not found."""
     portfolio = db.query(Portfolio).filter(
         Portfolio.id == portfolio_id,
         Portfolio.user_id == current_user.id,
@@ -281,6 +290,7 @@ def optimize(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Optimizes a portfolio by fetching price history, calculating optimal weights, and returning the result based on the user's risk score."""
     portfolio = db.query(Portfolio).filter(
         Portfolio.id == portfolio_id,
         Portfolio.user_id == current_user.id,

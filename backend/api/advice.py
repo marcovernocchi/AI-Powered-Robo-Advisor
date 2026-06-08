@@ -11,6 +11,7 @@ router = APIRouter(prefix="/advice", tags=["advice"])
 
 @router.post("/generate")
 def get_advice(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Returns investment advice based on the user's portfolio and risk score, generating and storing the advice in the database."""
     if not current_user.risk_score:
         raise HTTPException(status_code=400, detail="Complete the risk questionnaire first")
 
@@ -42,6 +43,7 @@ def get_advice(current_user: User = Depends(get_current_user), db: Session = Dep
 
 @router.get("/history")
 def advice_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Retrieves the 5 most recent advice history items for the current user."""
     items = (
         db.query(Advice)
         .filter(Advice.user_id == current_user.id)

@@ -60,6 +60,7 @@ def _section_band(score: int, max_score: int) -> int:
 
 
 def knowledge_level(d: SectionD) -> str:
+    """Returns the knowledge level based on the number of correct answers in SectionD."""
     correct = sum([d.d11, d.d12, d.d13, d.d14, d.d15])
     if correct <= 2:
         return "none"
@@ -94,6 +95,7 @@ def calculate_risk_score(q: RiskQuestion) -> tuple[int, str]:
 
 
 def risk_label(score: int) -> str:
+    """Returns a risk label based on the given score, categorizing it as Low, Medium, Medium-High, or High."""
     if score <= 26:
         return "Low (Defensive)"
     elif score <= 42:

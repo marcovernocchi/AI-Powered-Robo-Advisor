@@ -209,6 +209,7 @@ def smart_detect_columns(df: pd.DataFrame) -> dict:
 
 
 def resolve_ticker(row, mapping):
+    """Resolves a ticker symbol from a given row and mapping, prioritizing the 'ticker' field and falling back to 'isin' with yfinance lookup."""
     if 'ticker' in mapping:
         val = str(row[mapping['ticker']]).strip()
         if val and val.lower() not in ('nan', ''):
@@ -245,6 +246,7 @@ async def import_preview(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
+    """Imports a file preview, parsing CSV or Excel files and validating their contents to extract asset information."""
     ext = file.filename.lower().rsplit('.', 1)[-1] if '.' in file.filename else ''
     content = await file.read()
 
@@ -360,6 +362,7 @@ def import_confirm(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Imports holdings into a user's portfolio based on the provided bulk import request."""
     portfolio = db.query(Portfolio).filter(
         Portfolio.id == data.portfolio_id,
         Portfolio.user_id == current_user.id,
