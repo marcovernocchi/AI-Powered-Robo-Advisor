@@ -9,6 +9,7 @@ PERIODS = ["5d", "1mo", "3mo", "6mo", "ytd", "1y", "2y", "5y", "max"]
 
 @router.get("/price/{ticker}")
 def price(ticker: str):
+    """Returns a dictionary containing the ticker symbol and its current price, or an error message if retrieval fails."""
     try:
         return {"ticker": ticker.upper(), "price": get_current_price(ticker)}
     except Exception as e:  # noqa: BLE001
@@ -17,6 +18,7 @@ def price(ticker: str):
 
 @router.get("/history/{ticker}")
 def history(ticker: str, period: str = Query(default="1y", enum=PERIODS), start_date: str = Query(default=None)):
+    """Retrieves the price history for a given stock ticker over a specified period."""
     hist = get_price_history(ticker.upper(), period=period, start_date=start_date)
     return {
         "ticker": ticker.upper(),
@@ -26,6 +28,7 @@ def history(ticker: str, period: str = Query(default="1y", enum=PERIODS), start_
 
 @router.get("/dividends/{ticker}")
 def dividends(ticker: str, start_date: str = Query(default=None)):
+    """Retrieves the dividend history for a given stock ticker, optionally filtered by start date."""
     df = get_dividend_history(ticker.upper(), start_date=start_date)
     if df.empty:
         return {"ticker": ticker.upper(), "dividends": []}
@@ -36,6 +39,7 @@ def dividends(ticker: str, start_date: str = Query(default=None)):
 
 @router.get("/info/{ticker}")
 def info(ticker: str):
+    """Retrieves stock information for the given ticker symbol."""
     return get_stock_info(ticker.upper())
 
 

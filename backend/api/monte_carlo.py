@@ -12,4 +12,5 @@ def run_simulation(
     params: MonteCarloInput,
     _: User = Depends(get_current_user),
 ) -> MonteCarloResult:
+    """Runs a Monte Carlo simulation based on the provided input parameters and returns the result."""
     return run_monte_carlo(params)
