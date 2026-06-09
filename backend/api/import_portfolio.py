@@ -89,6 +89,18 @@ def clean_number(val) -> Optional[float]:
         return None
 
 
+CURRENCY_SYMBOLS = {'€': 'EUR', '$': 'USD', '£': 'GBP', '¥': 'JPY'}
+
+
+def detect_currency(series) -> Optional[str]:
+    """Look for a currency symbol in the raw price column to suggest a default currency."""
+    for val in series.dropna().astype(str).head(20):
+        for symbol, code in CURRENCY_SYMBOLS.items():
+            if symbol in val:
+                return code
+    return None
+
+
 def detect_columns(df_cols):
     """Match DataFrame column names to our field names."""
     normalized = {}
@@ -218,10 +230,12 @@ def resolve_ticker(row, mapping):
         if isin and isin.lower() not in ('nan', ''):
             try:
                 import yfinance as yf
-                sym = yf.Ticker(isin).fast_info.symbol
-                return sym.upper() if sym else isin.upper()
+                quotes = yf.Search(isin).quotes
+                if quotes and quotes[0].get('symbol'):
+                    return quotes[0]['symbol'].upper()
             except Exception:
-                return isin.upper()
+                pass
+            return isin.upper()
     return None
 
 
@@ -238,6 +252,7 @@ class BulkHolding(BaseModel):
 class BulkImportRequest(BaseModel):
     holdings: list[BulkHolding]
     portfolio_id: int
+    currency: str = 'USD'
 
 
 @router.post("/import/preview")
@@ -290,6 +305,8 @@ async def import_preview(
             status_code=422,
             detail=f"Could not find required columns: {', '.join(missing)}. Found columns: {list(df.columns)}",
         )
+
+    detected_currency = detect_currency(df[mapping['avg_buy_price']])
 
     rows = []
     for _, row in df.iterrows():
@@ -351,7 +368,7 @@ async def import_preview(
         except Exception:
             pass
 
-    return {'rows': rows, 'total': len(rows)}
+    return {'rows': rows, 'total': len(rows), 'detected_currency': detected_currency}
 
 
 @router.post("/import/confirm", status_code=201)
@@ -382,6 +399,7 @@ def import_confirm(
             asset_type=h.asset_type,
             shares=h.shares,
             avg_buy_price=h.avg_buy_price,
+            currency=data.currency,
             purchase_date=purchase_date,
             fees=h.fees or 0.0,
         ))

@@ -104,8 +104,14 @@ def _fetch_live_price(ticker: str) -> float | None:
     if price is not None:
         return price
     try:
-        price = yf.Ticker(ticker).fast_info.last_price
-        return float(price) if price else None
+        fast_info = yf.Ticker(ticker).fast_info
+        price = fast_info.last_price
+        if not price:
+            return None
+        # LSE quotes are often in pence (GBp/GBX); convert to pounds
+        if fast_info.currency in ('GBp', 'GBX'):
+            price = price / 100
+        return float(price)
     except Exception:
         return None
 
