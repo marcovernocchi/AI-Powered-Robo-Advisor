@@ -42,6 +42,7 @@ const en = {
     creating: 'Creating…',
     newPortfolio: 'New portfolio',
     portfolioPlaceholder: 'e.g. FinecoBank, Crypto, ETFs…',
+    chartIncludesDividends: 'Includes dividends received — may differ from the current value shown above',
   },
   portfolio: {
     title: 'Portfolio',
@@ -106,6 +107,8 @@ const en = {
     formats: 'Supported formats: CSV, Excel (.xlsx, .xls)',
     analyzing: 'Analyzing file…',
     found: (v) => `${v.n} rows detected`,
+    fileCurrency: 'Currency in this file',
+    fileCurrencyHint: 'Average buy price and current value will be shown in this currency',
     changeFile: 'Change file',
     confirm: (v) => `Import ${v.n} holdings`,
     successMsg: (v) => `${v.n} holdings imported successfully!`,
@@ -325,6 +328,7 @@ const it = {
     creating: 'Creazione…',
     newPortfolio: 'Nuovo portafoglio',
     portfolioPlaceholder: 'es. FinecoBank, Crypto, ETF…',
+    chartIncludesDividends: 'Include i dividendi incassati — può differire dal valore attuale mostrato sopra',
   },
   portfolio: {
     title: 'Portafoglio',
@@ -389,6 +393,8 @@ const it = {
     formats: 'Formati supportati: CSV, Excel (.xlsx, .xls)',
     analyzing: 'Analisi file in corso…',
     found: (v) => `${v.n} righe rilevate`,
+    fileCurrency: 'Valuta in questo file',
+    fileCurrencyHint: 'Prezzo medio di acquisto e valore corrente verranno mostrati in questa valuta',
     changeFile: 'Cambia file',
     confirm: (v) => `Importa ${v.n} posizioni`,
     successMsg: (v) => `${v.n} posizioni importate con successo!`,

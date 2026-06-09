@@ -2,10 +2,13 @@ import { useState, useRef } from 'react'
 import { importPreview, importConfirm } from '../api/client'
 import { useLang } from '../context/LangContext'
 
+const CURRENCIES = ['USD', 'EUR', 'CHF', 'GBP', 'JPY', 'CAD', 'AUD', 'SEK', 'NOK', 'DKK', 'PLN']
+
 export default function ImportModal({ portfolioList, defaultPortfolioId, onClose, onImported }) {
   const { t } = useLang()
   const [portfolioId, setPortfolioId] = useState(defaultPortfolioId ?? portfolioList[0]?.id ?? '')
   const [rows, setRows]               = useState(null)
+  const [currency, setCurrency]       = useState('EUR')
   const [selected, setSelected]       = useState([])
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState('')
@@ -25,6 +28,7 @@ export default function ImportModal({ portfolioList, defaultPortfolioId, onClose
       const result = await importPreview(file)
       setRows(result.rows)
       setSelected(result.rows.map((_, i) => i))
+      if (result.detected_currency) setCurrency(result.detected_currency)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -45,7 +49,7 @@ export default function ImportModal({ portfolioList, defaultPortfolioId, onClose
     setLoading(true)
     try {
       const toImport = rows.filter((_, i) => selected.includes(i))
-      const result = await importConfirm(toImport, parseInt(portfolioId))
+      const result = await importConfirm(toImport, parseInt(portfolioId), currency)
       setSuccess(t('importModal.successMsg', { n: result.created }))
       onImported()
       setTimeout(onClose, 1500)
@@ -124,6 +128,21 @@ export default function ImportModal({ portfolioList, defaultPortfolioId, onClose
                 <button onClick={() => { setRows(null); setSelected([]); setError('') }} className="text-xs text-gray-400 hover:text-gray-600">
                   {t('importModal.changeFile')}
                 </button>
+              </div>
+
+              <div>
+                <label className={labelClass}>{t('importModal.fileCurrency')}</label>
+                <div className="relative">
+                  <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={`${fieldClass} appearance-none pr-10`}>
+                    {CURRENCIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">{t('importModal.fileCurrencyHint')}</p>
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-800">

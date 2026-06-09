@@ -48,4 +48,15 @@ def migrate_db():
             conn.execute(text("ALTER TABLE holdings ADD COLUMN fees FLOAT DEFAULT 0.0"))
         if 'notes' not in hcols:
             conn.execute(text("ALTER TABLE holdings ADD COLUMN notes TEXT"))
+        if 'currency' not in hcols:
+            conn.execute(text("ALTER TABLE holdings ADD COLUMN currency VARCHAR NOT NULL DEFAULT 'USD'"))
+            # Existing holdings were recorded assuming the owner's display currency
+            conn.execute(text("""
+                UPDATE holdings
+                SET currency = (
+                    SELECT u.display_currency FROM users u
+                    JOIN portfolios p ON p.user_id = u.id
+                    WHERE p.id = holdings.portfolio_id
+                )
+            """))
         conn.commit()

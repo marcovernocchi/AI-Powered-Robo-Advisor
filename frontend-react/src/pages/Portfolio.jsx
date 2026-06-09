@@ -230,9 +230,9 @@ export default function Portfolio() {
                     <span className="text-xs text-gray-400">{ASSET_TYPE_LABEL[h.asset_type] ?? h.asset_type}</span>
                   </TableCell>
                   <TableCell>{h.shares}</TableCell>
-                  <TableCell>{fmtCurrency(h.avg_buy_price, h.native_currency)}</TableCell>
+                  <TableCell>{fmtCurrency(h.avg_buy_price, h.currency)}</TableCell>
                   <TableCell>
-                    <span>{fmtCurrency(h.current_price, h.native_currency)}</span>
+                    <span>{fmtCurrency(h.current_price, h.currency)}</span>
                     {h.price_stale && (
                       <span title="Prezzo non aggiornato (dati in cache)" className="ml-1 text-xs text-amber-400">⚠</span>
                     )}

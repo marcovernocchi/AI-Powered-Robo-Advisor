@@ -43,6 +43,7 @@ class Holding(Base):
     asset_type = Column(String, nullable=False, default='security', server_default='security')
     shares = Column(Float, nullable=False)
     avg_buy_price = Column(Float, nullable=False)
+    currency = Column(String, nullable=False, default='USD', server_default='USD')
     purchase_date = Column(Date, nullable=True)
     fees = Column(Float, nullable=True, default=0.0)
     notes = Column(Text, nullable=True)

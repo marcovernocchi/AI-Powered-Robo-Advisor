@@ -19,6 +19,7 @@ class HoldingIn(BaseModel):
     asset_type: str = 'security'
     shares: float
     avg_buy_price: float
+    currency: Optional[str] = None
     purchase_date: Optional[str] = None   # ISO date string YYYY-MM-DD
     fees: Optional[float] = 0.0
     notes: Optional[str] = None
@@ -50,12 +51,17 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
     total_value = 0.0
     for h in holdings:
         price_data = prices.get(h.ticker, {"price": None, "stale": False})
-        current_price = price_data["price"] or h.avg_buy_price
+        current_price_native = price_data["price"] or h.avg_buy_price
         price_stale = price_data["stale"]
         native_currency = get_ticker_currency(h.ticker)
-        value_native = h.shares * current_price
+        holding_currency = h.currency or display_currency
+        value_native = h.shares * current_price_native
         value = convert(value_native, native_currency, display_currency)
         total_value += value
+        # avg_buy_price is recorded in the currency of the source file/entry,
+        # so convert the live price into that same currency for a fair comparison
+        # and to keep avg buy / current price displayed side by side consistently.
+        current_price = convert(current_price_native, native_currency, holding_currency)
         pnl_pct = (current_price - h.avg_buy_price) / h.avg_buy_price * 100
         holdings_out.append({
             "id": h.id,
@@ -63,6 +69,7 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
             "ticker": h.ticker,
             "shares": h.shares,
             "avg_buy_price": h.avg_buy_price,
+            "currency": holding_currency,
             "current_price": round(current_price, 2),
             "price_stale": price_stale,
             "native_currency": native_currency,
@@ -154,6 +161,7 @@ def add_holding(
         asset_type=data.asset_type,
         shares=data.shares,
         avg_buy_price=data.avg_buy_price,
+        currency=data.currency or current_user.display_currency,
         purchase_date=purchase_date,
         fees=data.fees or 0.0,
         notes=data.notes,
