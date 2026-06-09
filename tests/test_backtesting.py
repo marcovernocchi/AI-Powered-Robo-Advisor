@@ -10,7 +10,7 @@ import pytest
 from backend.backtesting.data_loader import align_weights
 from backend.backtesting.engine import BacktestEngine
 from backend.backtesting.metrics import compute_metrics, _max_drawdown_duration
-from backend.backtesting.schemas import BacktestInput, BacktestResult, RebalanceFrequency
+from backend.backtesting.schemas import BacktestInput, BacktestResult, PerformanceMetrics, RebalanceFrequency
 
 
 # ---------------------------------------------------------------------------
