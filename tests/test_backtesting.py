@@ -309,7 +309,6 @@ class TestDriftRebalancing:
 
     def test_rebalance_fires_when_drift_exceeded(self):
         """A strongly trending asset will eventually exceed the threshold."""
-        import numpy as np
         idx = pd.bdate_range(start="2020-01-02", periods=300)
         # A rises 0.5%/day, B stays flat → weights diverge quickly
         prices_a = 100 * (1.005 ** pd.Series(range(300), index=idx))
@@ -328,7 +327,6 @@ class TestDriftRebalancing:
 
     def test_higher_threshold_means_fewer_rebalances(self):
         """A tighter threshold triggers more rebalances than a looser one."""
-        import numpy as np
         idx = pd.bdate_range(start="2020-01-02", periods=500)
         prices_a = 100 * (1.003 ** pd.Series(range(500), index=idx))
         prices_b = pd.Series(100.0, index=idx)
