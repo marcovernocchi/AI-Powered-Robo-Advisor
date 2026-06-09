@@ -76,10 +76,10 @@ export async function importPreview(file) {
   return res.json()
 }
 
-export const importConfirm = (holdings, portfolioId) =>
+export const importConfirm = (holdings, portfolioId, currency) =>
   request('/portfolio/import/confirm', {
     method: 'POST',
-    body: JSON.stringify({ holdings, portfolio_id: portfolioId }),
+    body: JSON.stringify({ holdings, portfolio_id: portfolioId, currency }),
   })
 
 export const getMarketHistory = (ticker, period = '1y', startDate = null) => {
