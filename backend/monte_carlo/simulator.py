@@ -6,12 +6,82 @@ import numpy as np
 from sklearn.covariance import OAS
 
 from backend.backtesting.data_loader import load_prices, align_weights
-from backend.monte_carlo.schemas import MonteCarloInput, MonteCarloResult, PercentileSeries
+from backend.monte_carlo.schemas import AssetOverride, MonteCarloInput, MonteCarloResult, PercentileSeries
 
 # Steps per year for the simulation (monthly granularity)
 STEPS_PER_YEAR = 12
 # Minimum trading days of history required per asset
 MIN_HISTORY_DAYS = 252
+
+
+def _estimate_expected_returns(
+    tickers: list[str],
+    mu_annual_hist: np.ndarray,
+    shrinkage_lambda: float,
+    long_run_return: float,
+    overrides: dict[str, AssetOverride],
+) -> tuple[np.ndarray, dict[str, str]]:
+    """Apply the three-level hierarchy to produce final expected returns.
+
+    Hierarchy (highest priority first):
+      1. Manual override (asset_overrides[ticker].expected_return)
+      2. Shrinkage toward long-run prior: (1-λ)*r_hist + λ*long_run_return
+      3. Pure historical (λ=0 case of shrinkage)
+
+    Returns:
+        mu_final: array of annual expected returns (decimal fractions)
+        sources:  dict mapping ticker → "manual" | "shrinkage" | "historical"
+    """
+    # Step 1: apply shrinkage to all assets
+    mu_final = (1.0 - shrinkage_lambda) * mu_annual_hist + shrinkage_lambda * long_run_return
+    sources = {
+        t: "historical" if shrinkage_lambda == 0.0 else "shrinkage"
+        for t in tickers
+    }
+
+    # Step 2: override individual assets where the user has specified a manual return
+    for i, ticker in enumerate(tickers):
+        ov = overrides.get(ticker)
+        if ov is not None and ov.expected_return is not None:
+            mu_final[i] = ov.expected_return
+            sources[ticker] = "manual"
+
+    return mu_final, sources
+
+
+def _apply_volatility_overrides(
+    tickers: list[str],
+    cov_annual: np.ndarray,
+    overrides: dict[str, AssetOverride],
+) -> np.ndarray:
+    """Replace per-asset diagonal volatilities while preserving OAS correlations.
+
+    Extracts the OAS correlation matrix, substitutes the overridden standard
+    deviations, then reconstructs C = D @ corr @ D.  This keeps the
+    cross-asset correlation structure intact.
+    """
+    if not any(
+        ov.expected_volatility is not None
+        for ov in overrides.values()
+        if ov is not None
+    ):
+        return cov_annual
+
+    # Extract current std-devs and correlation matrix
+    std_devs = np.sqrt(np.diag(cov_annual))
+    with np.errstate(invalid="ignore"):
+        D_inv = np.diag(np.where(std_devs > 0, 1.0 / std_devs, 0.0))
+    corr = D_inv @ cov_annual @ D_inv
+
+    # Replace overridden volatilities
+    new_std = std_devs.copy()
+    for i, ticker in enumerate(tickers):
+        ov = overrides.get(ticker)
+        if ov is not None and ov.expected_volatility is not None:
+            new_std[i] = ov.expected_volatility
+
+    D_new = np.diag(new_std)
+    return D_new @ corr @ D_new
 
 
 def run_monte_carlo(params: MonteCarloInput, rng: np.random.Generator | None = None) -> MonteCarloResult:
@@ -48,17 +118,28 @@ def run_monte_carlo(params: MonteCarloInput, rng: np.random.Generator | None = N
     # --- 2. Estimate returns and covariance from log-returns ---
     log_ret = np.log(prices / prices.shift(1)).dropna()
 
-    # Annualised mean (arithmetic from log-return mean + variance correction)
+    # Annualised mean (arithmetic from log-return mean + variance correction, GBM Itô formula)
     mu_daily = log_ret.mean().values
     sigma2_daily = log_ret.var().values
-    # Convert to arithmetic annual returns for the GBM model
-    mu_annual = np.exp((mu_daily + 0.5 * sigma2_daily) * 252) - 1  # expected arithmetic return
+    mu_annual_hist = np.exp((mu_daily + 0.5 * sigma2_daily) * 252) - 1
 
     # OAS regularised covariance of daily log-returns → scale to annual
     oas = OAS()
     oas.fit(log_ret.values)
     cov_daily = oas.covariance_
     cov_annual = cov_daily * 252
+
+    # Apply volatility overrides: replace diagonal vols while keeping OAS correlations
+    cov_annual = _apply_volatility_overrides(ordered_tickers, cov_annual, params.asset_overrides)
+
+    # Apply return estimation hierarchy: manual override > shrinkage > historical
+    mu_annual, return_sources = _estimate_expected_returns(
+        ordered_tickers,
+        mu_annual_hist,
+        params.shrinkage_lambda,
+        params.long_run_return,
+        params.asset_overrides,
+    )
 
     # Cholesky decomposition for correlated draws
     try:
@@ -148,5 +229,6 @@ def run_monte_carlo(params: MonteCarloInput, rng: np.random.Generator | None = N
         prob_target=prob_target,
         annualized_returns=ann_ret,
         annualized_volatilities=ann_vol,
+        return_sources=return_sources,
         warnings=warnings,
     )

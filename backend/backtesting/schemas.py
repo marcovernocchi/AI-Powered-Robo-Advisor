@@ -56,6 +56,19 @@ class AnnualReturn(BaseModel):
     return_pct: float
 
 
+class RollingPoint(BaseModel):
+    """One data point in a rolling metric series (weekly-sampled)."""
+    date: date
+    value: float
+
+
+class MonthlyReturn(BaseModel):
+    """Monthly portfolio return for the heatmap grid."""
+    year: int
+    month: int        # 1–12
+    return_pct: float
+
+
 class PerformanceMetrics(BaseModel):
     total_return_pct: float
     cagr_pct: float
@@ -65,6 +78,14 @@ class PerformanceMetrics(BaseModel):
     max_drawdown_pct: float
     max_drawdown_duration_days: int
     annual_returns: list[AnnualReturn]
+    # Rolling metrics (12-month / 252-trading-day window, weekly-sampled)
+    rolling_sharpe: list[RollingPoint] = []
+    rolling_volatility: list[RollingPoint] = []
+    # Risk analysis — historical method
+    var_95_pct: Optional[float] = None   # daily VaR at 95% confidence (% loss, positive = loss)
+    cvar_95_pct: Optional[float] = None  # daily CVaR at 95% (expected shortfall)
+    # Monthly return grid for heatmap
+    monthly_returns: list[MonthlyReturn] = []
 
 
 class TimeSeriesPoint(BaseModel):
