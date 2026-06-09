@@ -58,15 +58,13 @@ async function buildChartData(holdings, period) {
         getMarketHistory(h.ticker, period.api)
           .then((r) => ({
             shares: h.shares,
-            avgBuyPrice: h.avg_buy_price,
-            currentPrice: h.current_price,
+            value: h.value,
             purchaseDate: h.purchase_date ?? null,
             data: r.data,
           }))
           .catch(() => ({
             shares: h.shares,
-            avgBuyPrice: h.avg_buy_price,
-            currentPrice: h.current_price,
+            value: h.value,
             purchaseDate: h.purchase_date ?? null,
             data: [],
           }))
@@ -94,7 +92,7 @@ async function buildChartData(holdings, period) {
   // For dates with no price data, forward-fill with the last known price.
   const allDates = Object.keys(byDate).sort()
 
-  histories.forEach(({ shares, avgBuyPrice, currentPrice, purchaseDate, data: rows }) => {
+  histories.forEach(({ shares, value, purchaseDate, data: rows }) => {
     // Build a price map for known dates
     const priceMap = {}
     rows.forEach((row) => {
@@ -103,21 +101,33 @@ async function buildChartData(holdings, period) {
     })
 
     const knownDates = Object.keys(priceMap).sort()
-    const fallback = currentPrice ?? avgBuyPrice
+    const perShareValue = shares > 0 ? value / shares : 0
+
+    // getMarketHistory returns raw Close prices in the ticker's native quoting
+    // unit/currency (e.g. GBp pence for LSE tickers), which can't be summed
+    // directly across holdings. h.value is already converted to the display
+    // currency (and pence-adjusted) by the backend, so the ratio between it
+    // and the latest raw close gives a single factor that folds in both the
+    // unit conversion and the FX rate (approximated as constant over the period).
+    let factor = 1
+    if (knownDates.length > 0 && perShareValue > 0) {
+      const latestRaw = priceMap[knownDates.at(-1)]
+      if (latestRaw) factor = perShareValue / latestRaw
+    }
 
     allDates.forEach((date) => {
       if (purchaseDate && date < purchaseDate) return
 
       if (priceMap[date] != null) {
-        byDate[date] += shares * priceMap[date]
+        byDate[date] += shares * priceMap[date] * factor
       } else if (knownDates.length > 0) {
         // Last known price before or on this date
         const last = knownDates.filter((d) => d <= date).at(-1)
           ?? knownDates[0]  // if no data before this date, use earliest available
-        byDate[date] += shares * priceMap[last]
+        byDate[date] += shares * priceMap[last] * factor
       } else {
-        // No history at all — use current price
-        byDate[date] += shares * fallback
+        // No history at all — use current value per share (already in display currency)
+        byDate[date] += shares * perShareValue
       }
     })
   })
@@ -390,6 +400,7 @@ export default function Dashboard() {
           {/* Chart */}
           {holdings.length > 0 ? (
             <>
+              <p className="text-xs text-gray-400 text-right">{t('dashboard.chartIncludesDividends')}</p>
               <div className="flex gap-1 justify-end">
                 {PERIOD_OPTIONS.map((p) => (
                   <button
@@ -553,7 +564,7 @@ export default function Dashboard() {
                   </td>
                   <td className="py-3 text-right text-gray-500 dark:text-gray-400">
                     {h.avg_buy_price.toLocaleString('en-US', {
-                      style: 'currency', currency: h.native_currency ?? 'USD', maximumFractionDigits: 2,
+                      style: 'currency', currency: h.currency ?? displayCurrency, maximumFractionDigits: 2,
                     })}
                   </td>
                   <td className="py-3 text-right font-medium">{fmtCurrency(h.value)}</td>
