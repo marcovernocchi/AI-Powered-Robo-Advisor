@@ -277,3 +277,165 @@ class TestBacktestEngine:
         r_cost = self._run_with_prices(prices, params_cost)
         assert r_cost.portfolio_series[-1].portfolio_value < r_no.portfolio_series[-1].portfolio_value
         assert r_cost.total_transaction_costs > 0
+
+
+# ---------------------------------------------------------------------------
+# Drift / threshold rebalancing
+# ---------------------------------------------------------------------------
+
+class TestDriftRebalancing:
+    """Verify drift-threshold rebalancing fires only when deviation exceeds threshold."""
+
+    def _run_with_prices(self, prices, params):
+        from unittest.mock import patch
+        engine = BacktestEngine()
+        with patch("backend.backtesting.engine.load_prices", return_value=(prices, [])):
+            return engine.run(params)
+
+    def test_no_rebalance_below_threshold(self):
+        """With flat prices, weights never drift — no rebalance beyond day-0."""
+        prices = _flat_prices(["A", "B"], n_days=252)
+        params = BacktestInput(
+            weights={"A": 0.6, "B": 0.4},
+            initial_capital=10_000,
+            start_date=date(2020, 1, 1),
+            end_date=date(2021, 6, 1),
+            rebalance_frequency=RebalanceFrequency.DRIFT,
+            drift_threshold=0.05,
+        )
+        result = self._run_with_prices(prices, params)
+        # Only the initial allocation date should be recorded
+        assert len(result.rebalance_dates) == 1
+
+    def test_rebalance_fires_when_drift_exceeded(self):
+        """A strongly trending asset will eventually exceed the threshold."""
+        import numpy as np
+        idx = pd.bdate_range(start="2020-01-02", periods=300)
+        # A rises 0.5%/day, B stays flat → weights diverge quickly
+        prices_a = 100 * (1.005 ** pd.Series(range(300), index=idx))
+        prices_b = pd.Series(100.0, index=idx)
+        prices = pd.DataFrame({"A": prices_a, "B": prices_b})
+        params = BacktestInput(
+            weights={"A": 0.5, "B": 0.5},
+            initial_capital=10_000,
+            start_date=date(2020, 1, 1),
+            end_date=date(2021, 6, 1),
+            rebalance_frequency=RebalanceFrequency.DRIFT,
+            drift_threshold=0.05,
+        )
+        result = self._run_with_prices(prices, params)
+        assert len(result.rebalance_dates) > 1
+
+    def test_higher_threshold_means_fewer_rebalances(self):
+        """A tighter threshold triggers more rebalances than a looser one."""
+        import numpy as np
+        idx = pd.bdate_range(start="2020-01-02", periods=500)
+        prices_a = 100 * (1.003 ** pd.Series(range(500), index=idx))
+        prices_b = pd.Series(100.0, index=idx)
+        prices = pd.DataFrame({"A": prices_a, "B": prices_b})
+        base = dict(
+            weights={"A": 0.5, "B": 0.5},
+            initial_capital=10_000,
+            start_date=date(2020, 1, 1),
+            end_date=date(2022, 1, 1),
+            rebalance_frequency=RebalanceFrequency.DRIFT,
+        )
+        result_tight = self._run_with_prices(prices, BacktestInput(**base, drift_threshold=0.02))
+        result_loose = self._run_with_prices(prices, BacktestInput(**base, drift_threshold=0.15))
+        assert len(result_tight.rebalance_dates) > len(result_loose.rebalance_dates)
+
+
+# ---------------------------------------------------------------------------
+# VaR / CVaR
+# ---------------------------------------------------------------------------
+
+class TestVaRCVaR:
+    def _metrics_from_returns(self, daily_returns: list[float]) -> "PerformanceMetrics":
+        from backend.backtesting.metrics import compute_metrics
+        idx = pd.bdate_range(start="2020-01-02", periods=len(daily_returns) + 1)
+        values = pd.Series(100.0, index=idx[:1])
+        for r in daily_returns:
+            values[idx[len(values)]] = values.iloc[-1] * (1 + r)
+        return compute_metrics(values)
+
+    def test_var_positive_means_loss(self):
+        """VaR should be a positive number representing a loss magnitude."""
+        import numpy as np
+        rng = np.random.default_rng(42)
+        returns = rng.normal(0.0005, 0.01, 500).tolist()
+        m = self._metrics_from_returns(returns)
+        assert m.var_95_pct is not None
+        assert m.var_95_pct > 0
+
+    def test_cvar_geq_var(self):
+        """CVaR (expected shortfall) must be >= VaR by definition."""
+        import numpy as np
+        rng = np.random.default_rng(7)
+        returns = rng.normal(0.0, 0.015, 600).tolist()
+        m = self._metrics_from_returns(returns)
+        assert m.cvar_95_pct >= m.var_95_pct
+
+    def test_var_known_distribution(self):
+        """On a controlled symmetric distribution, VaR ≈ 1.645σ (normal approximation)."""
+        import numpy as np
+        rng = np.random.default_rng(0)
+        sigma = 0.01
+        returns = rng.normal(0.0, sigma, 5000).tolist()
+        m = self._metrics_from_returns(returns)
+        # Historical VaR on large normal sample ≈ 1.645 * sigma * 100
+        expected = 1.645 * sigma * 100
+        assert abs(m.var_95_pct - expected) < 0.3  # within 0.3 pp
+
+    def test_none_when_too_few_returns(self):
+        """With fewer than 20 returns, VaR/CVaR should be None."""
+        from backend.backtesting.metrics import _var_cvar
+        import numpy as np
+        short = pd.Series(np.random.default_rng(1).normal(0, 0.01, 10))
+        var, cvar = _var_cvar(short)
+        assert var is None and cvar is None
+
+
+# ---------------------------------------------------------------------------
+# Rolling metrics
+# ---------------------------------------------------------------------------
+
+class TestRollingMetrics:
+    def _make_nav(self, n_days: int, daily_return: float = 0.0005, seed: int = 42) -> pd.Series:
+        import numpy as np
+        rng = np.random.default_rng(seed)
+        idx = pd.bdate_range(start="2019-01-02", periods=n_days)
+        returns = rng.normal(daily_return, 0.01, n_days)
+        nav = pd.Series(100.0 * (1 + returns).cumprod(), index=idx)
+        return nav
+
+    def test_empty_when_series_too_short(self):
+        """Rolling series should be empty if history < 252 days."""
+        from backend.backtesting.metrics import compute_metrics
+        nav = self._make_nav(200)
+        m = compute_metrics(nav)
+        assert m.rolling_sharpe == []
+        assert m.rolling_volatility == []
+
+    def test_rolling_series_length_with_long_history(self):
+        """With 3 years of data, rolling series should have ~(3*52 - 52) ≈ 104 weekly points."""
+        from backend.backtesting.metrics import compute_metrics
+        nav = self._make_nav(756)  # ~3 years
+        m = compute_metrics(nav)
+        # Should have roughly 2 years of weekly points after the burn-in window
+        assert len(m.rolling_sharpe) > 50
+        assert len(m.rolling_volatility) > 50
+
+    def test_rolling_vol_positive(self):
+        """Rolling volatility values must all be positive."""
+        from backend.backtesting.metrics import compute_metrics
+        nav = self._make_nav(600)
+        m = compute_metrics(nav)
+        assert all(p.value > 0 for p in m.rolling_volatility)
+
+    def test_rolling_dates_ascending(self):
+        """Dates in rolling series must be strictly ascending."""
+        from backend.backtesting.metrics import compute_metrics
+        nav = self._make_nav(600)
+        m = compute_metrics(nav)
+        dates = [p.date for p in m.rolling_sharpe]
+        assert dates == sorted(dates)

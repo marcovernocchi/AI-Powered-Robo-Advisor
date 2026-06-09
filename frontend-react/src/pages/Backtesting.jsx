@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AreaChart } from '@tremor/react'
+import { AreaChart, LineChart } from '@tremor/react'
 import { runBacktest, getPortfolio, getPortfolioById, getPortfolioList } from '../api/client'
 import { useLang } from '../context/LangContext'
 
@@ -523,6 +523,128 @@ export default function Backtesting() {
                   </table>
                 </div>
               )}
+
+              {/* Rolling metrics charts */}
+              {(m.rolling_sharpe?.length > 0 || m.rolling_volatility?.length > 0) && (
+                <div className="bg-white dark:bg-gray-900 rounded-xl p-5 space-y-5">
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{bt('sectionRolling')}</p>
+
+                  {m.rolling_sharpe?.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{bt('rollingSharpeLabel')}</p>
+                      <LineChart
+                        className="h-40 [&_.recharts-cartesian-axis-tick_text]:dark:fill-white [&_.recharts-cartesian-axis-tick_text]:text-xs"
+                        data={m.rolling_sharpe.map((p) => ({ date: p.date, [bt('rollingSharpeLabel')]: p.value }))}
+                        index="date"
+                        categories={[bt('rollingSharpeLabel')]}
+                        colors={['blue']}
+                        showLegend={false}
+                        showXAxis
+                        showYAxis
+                        yAxisWidth={44}
+                        curveType="monotone"
+                        valueFormatter={(v) => v.toFixed(2)}
+                      />
+                    </div>
+                  )}
+
+                  {m.rolling_volatility?.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{bt('rollingVolLabel')}</p>
+                      <LineChart
+                        className="h-40 [&_.recharts-cartesian-axis-tick_text]:dark:fill-white [&_.recharts-cartesian-axis-tick_text]:text-xs"
+                        data={m.rolling_volatility.map((p) => ({ date: p.date, [bt('rollingVolLabel')]: p.value }))}
+                        index="date"
+                        categories={[bt('rollingVolLabel')]}
+                        colors={['violet']}
+                        showLegend={false}
+                        showXAxis
+                        showYAxis
+                        yAxisWidth={44}
+                        curveType="monotone"
+                        valueFormatter={(v) => `${v.toFixed(1)}%`}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VaR / CVaR */}
+              {(m.var_95_pct !== null && m.var_95_pct !== undefined) && (
+                <div className="bg-white dark:bg-gray-900 rounded-xl p-5 space-y-3">
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{bt('sectionRisk')}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <MetricCard
+                      label={bt('var95')}
+                      value={`-${m.var_95_pct.toFixed(2)}%`}
+                      highlight="negative"
+                    />
+                    <MetricCard
+                      label={bt('cvar95')}
+                      value={`-${m.cvar_95_pct.toFixed(2)}%`}
+                      highlight="negative"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 italic">{bt('varNote')}</p>
+                </div>
+              )}
+
+              {/* Monthly returns heatmap */}
+              {m.monthly_returns?.length > 0 && (() => {
+                const months = bt('months')
+                const years = [...new Set(m.monthly_returns.map((r) => r.year))].sort()
+                const byYearMonth = {}
+                for (const r of m.monthly_returns) {
+                  byYearMonth[`${r.year}-${r.month}`] = r.return_pct
+                }
+                const maxAbs = Math.min(
+                  10,
+                  Math.max(...m.monthly_returns.map((r) => Math.abs(r.return_pct)))
+                )
+                function cellColor(v) {
+                  if (v === undefined || v === null) return 'bg-gray-50 dark:bg-gray-800'
+                  const intensity = Math.min(1, Math.abs(v) / maxAbs)
+                  if (v >= 0) {
+                    if (intensity > 0.66) return 'bg-emerald-500 text-white'
+                    if (intensity > 0.33) return 'bg-emerald-300 dark:bg-emerald-700'
+                    return 'bg-emerald-100 dark:bg-emerald-900/40'
+                  } else {
+                    if (intensity > 0.66) return 'bg-red-500 text-white'
+                    if (intensity > 0.33) return 'bg-red-300 dark:bg-red-700'
+                    return 'bg-red-100 dark:bg-red-900/40'
+                  }
+                }
+                return (
+                  <div className="bg-white dark:bg-gray-900 rounded-xl p-5 space-y-3 overflow-x-auto">
+                    <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{bt('sectionHeatmap')}</p>
+                    <table className="text-xs w-full min-w-[520px]">
+                      <thead>
+                        <tr>
+                          <th className="text-left pr-2 pb-1 font-medium text-gray-400 w-10">{bt('year')}</th>
+                          {months.map((mo) => (
+                            <th key={mo} className="text-center pb-1 font-medium text-gray-400 w-10">{mo}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {years.map((yr) => (
+                          <tr key={yr}>
+                            <td className="pr-2 py-0.5 font-semibold text-gray-600 dark:text-gray-300">{yr}</td>
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map((mo) => {
+                              const val = byYearMonth[`${yr}-${mo}`]
+                              return (
+                                <td key={mo} className={`text-center py-0.5 rounded ${cellColor(val)}`}>
+                                  {val !== undefined ? `${val > 0 ? '+' : ''}${val.toFixed(1)}` : ''}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              })()}
             </>
           )}
         </div>

@@ -5,11 +5,13 @@ from __future__ import annotations
 import math
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
-from .schemas import AnnualReturn, PerformanceMetrics
+from .schemas import AnnualReturn, MonthlyReturn, PerformanceMetrics, RollingPoint
 
 TRADING_DAYS_PER_YEAR = 252
+ROLLING_WINDOW = TRADING_DAYS_PER_YEAR  # 12-month rolling window
 
 
 def compute_metrics(
@@ -65,6 +67,16 @@ def compute_metrics(
     # Annual returns
     annual_returns = _annual_returns(values)
 
+    # --- Rolling metrics (252-day window, weekly-sampled) ---
+    rolling_sharpe = _rolling_sharpe(daily_returns, risk_free_rate)
+    rolling_vol = _rolling_volatility(daily_returns)
+
+    # --- VaR / CVaR (historical, 95% confidence) ---
+    var_95, cvar_95 = _var_cvar(daily_returns, confidence=0.95)
+
+    # --- Monthly return heatmap ---
+    monthly_returns = _monthly_returns(values)
+
     return PerformanceMetrics(
         total_return_pct=round(total_return * 100, 4),
         cagr_pct=round(cagr * 100, 4),
@@ -74,6 +86,11 @@ def compute_metrics(
         max_drawdown_pct=round(max_dd * 100, 4),
         max_drawdown_duration_days=max_dd_duration,
         annual_returns=annual_returns,
+        rolling_sharpe=rolling_sharpe,
+        rolling_volatility=rolling_vol,
+        var_95_pct=var_95,
+        cvar_95_pct=cvar_95,
+        monthly_returns=monthly_returns,
     )
 
 
@@ -86,6 +103,72 @@ def _max_drawdown_duration(drawdown: pd.Series) -> int:
         streak = streak + 1 if v else 0
         max_streak = max(max_streak, streak)
     return max_streak
+
+
+def _rolling_sharpe(daily_returns: pd.Series, risk_free_rate: float) -> list[RollingPoint]:
+    """Annualised Sharpe on a rolling 252-day window, sampled weekly."""
+    if len(daily_returns) < ROLLING_WINDOW + 1:
+        return []
+    daily_rf = (1 + risk_free_rate) ** (1 / TRADING_DAYS_PER_YEAR) - 1
+    excess = daily_returns - daily_rf
+    roll_mean = excess.rolling(ROLLING_WINDOW).mean()
+    roll_std = excess.rolling(ROLLING_WINDOW).std()
+    sharpe_series = (roll_mean / roll_std) * math.sqrt(TRADING_DAYS_PER_YEAR)
+    # Weekly sampling to keep response size manageable
+    sampled = sharpe_series.resample("W").last().dropna()
+    return [
+        RollingPoint(date=ts.date(), value=round(float(v), 4))
+        for ts, v in sampled.items()
+    ]
+
+
+def _rolling_volatility(daily_returns: pd.Series) -> list[RollingPoint]:
+    """Annualised volatility on a rolling 252-day window, sampled weekly."""
+    if len(daily_returns) < ROLLING_WINDOW + 1:
+        return []
+    roll_vol = daily_returns.rolling(ROLLING_WINDOW).std() * math.sqrt(TRADING_DAYS_PER_YEAR) * 100
+    sampled = roll_vol.resample("W").last().dropna()
+    return [
+        RollingPoint(date=ts.date(), value=round(float(v), 4))
+        for ts, v in sampled.items()
+    ]
+
+
+def _var_cvar(daily_returns: pd.Series, confidence: float = 0.95) -> tuple[Optional[float], Optional[float]]:
+    """Historical VaR and CVaR at the given confidence level.
+
+    Returns (var, cvar) as positive percentages representing losses.
+    E.g. var=1.5 means a 1.5% daily loss is not exceeded with 95% probability.
+    """
+    if len(daily_returns) < 20:
+        return None, None
+    r = daily_returns.values
+    cutoff = np.percentile(r, (1 - confidence) * 100)  # e.g. 5th percentile
+    var = -cutoff * 100                                  # flip sign: positive = loss
+    tail = r[r <= cutoff]
+    cvar = -float(tail.mean()) * 100 if len(tail) > 0 else var
+    return round(float(var), 4), round(float(cvar), 4)
+
+
+def _monthly_returns(values: pd.Series) -> list[MonthlyReturn]:
+    """Monthly portfolio returns for the heatmap grid.
+
+    Uses month-end NAV values. Partial first/last months are included as-is.
+    """
+    monthly_nav = values.resample("ME").last().dropna()
+    if len(monthly_nav) < 2:
+        return []
+    # Shift by 1 to get start-of-month NAV for each period
+    prev_nav = monthly_nav.shift(1)
+    monthly_ret = ((monthly_nav - prev_nav) / prev_nav).dropna()
+    result = []
+    for ts, ret in monthly_ret.items():
+        result.append(MonthlyReturn(
+            year=int(ts.year),
+            month=int(ts.month),
+            return_pct=round(float(ret) * 100, 4),
+        ))
+    return result
 
 
 def _annual_returns(values: pd.Series) -> list[AnnualReturn]:
