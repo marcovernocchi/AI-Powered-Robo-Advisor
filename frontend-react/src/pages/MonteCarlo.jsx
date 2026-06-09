@@ -45,8 +45,8 @@ export default function MonteCarlo() {
 
   // --- Form state ---
   const [assets, setAssets] = useState([
-    { ticker: 'VWCE.MI', weight: '60' },
-    { ticker: 'AGGH.MI', weight: '40' },
+    { ticker: 'VWCE.MI', weight: '60', overrideReturn: '', overrideVol: '' },
+    { ticker: 'AGGH.MI', weight: '40', overrideReturn: '', overrideVol: '' },
   ])
   const [capital, setCapital] = useState('10000')
   const [horizonYears, setHorizonYears] = useState('20')
@@ -54,6 +54,9 @@ export default function MonteCarlo() {
   const [monthlyContrib, setMonthlyContrib] = useState('0')
   const [targetValue, setTargetValue] = useState('')
   const [lookbackYears, setLookbackYears] = useState('5')
+  // --- Return estimation ---
+  const [shrinkageLambda, setShrinkageLambda] = useState('0.3')
+  const [longRunReturn, setLongRunReturn] = useState('6')
 
   // --- Load from portfolio ---
   const [portfolioList, setPortfolioList] = useState(null)
@@ -70,7 +73,7 @@ export default function MonteCarlo() {
   const weightsOk = Math.abs(totalWeight - 100) < 0.01
 
   function addAsset() {
-    setAssets([...assets, { ticker: '', weight: '' }])
+    setAssets([...assets, { ticker: '', weight: '', overrideReturn: '', overrideVol: '' }])
   }
 
   function removeAsset(i) {
@@ -148,8 +151,15 @@ export default function MonteCarlo() {
     setResult(null)
 
     const weights = {}
+    const asset_overrides = {}
     for (const a of assets) {
-      if (a.ticker.trim()) weights[a.ticker.trim().toUpperCase()] = (parseFloat(a.weight) || 0) / 100
+      const ticker = a.ticker.trim().toUpperCase()
+      if (!ticker) continue
+      weights[ticker] = (parseFloat(a.weight) || 0) / 100
+      const ov = {}
+      if (a.overrideReturn.trim() !== '') ov.expected_return = parseFloat(a.overrideReturn) / 100
+      if (a.overrideVol.trim() !== '') ov.expected_volatility = parseFloat(a.overrideVol) / 100
+      if (Object.keys(ov).length > 0) asset_overrides[ticker] = ov
     }
 
     try {
@@ -161,6 +171,9 @@ export default function MonteCarlo() {
         monthly_contribution: parseFloat(monthlyContrib) || 0,
         target_value: targetValue.trim() ? parseFloat(targetValue) : null,
         lookback_years: parseInt(lookbackYears, 10),
+        shrinkage_lambda: parseFloat(shrinkageLambda),
+        long_run_return: parseFloat(longRunReturn) / 100,
+        asset_overrides,
       })
       setResult(data)
     } catch (err) {
@@ -257,35 +270,61 @@ export default function MonteCarlo() {
               )}
 
               {assets.map((a, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    placeholder={mc('ticker')}
-                    value={a.ticker}
-                    onChange={(e) => updateAsset(i, 'ticker', e.target.value)}
-                    className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100 font-mono uppercase"
-                    required
-                  />
-                  <input
-                    type="number"
-                    placeholder="%"
-                    value={a.weight}
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    onChange={(e) => updateAsset(i, 'weight', e.target.value)}
-                    className="w-16 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100"
-                    required
-                  />
-                  {assets.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeAsset(i)}
-                      className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors text-lg leading-none"
-                    >
-                      ×
-                    </button>
-                  )}
+                <div key={i} className="space-y-1">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      placeholder={mc('ticker')}
+                      value={a.ticker}
+                      onChange={(e) => updateAsset(i, 'ticker', e.target.value)}
+                      className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100 font-mono uppercase"
+                      required
+                    />
+                    <input
+                      type="number"
+                      placeholder="%"
+                      value={a.weight}
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      onChange={(e) => updateAsset(i, 'weight', e.target.value)}
+                      className="w-16 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100"
+                      required
+                    />
+                    {assets.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeAsset(i)}
+                        className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors text-lg leading-none"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  {/* Per-asset manual overrides — aligned to ticker+weight+× row */}
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="number"
+                      placeholder={mc('overrideReturnPlaceholder')}
+                      value={a.overrideReturn}
+                      step="0.1"
+                      onChange={(e) => updateAsset(i, 'overrideReturn', e.target.value)}
+                      className="flex-1 px-2 py-1.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-amber-400 placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                      title={mc('overrideReturnTitle')}
+                    />
+                    <input
+                      type="number"
+                      placeholder={mc('overrideVolPlaceholder')}
+                      value={a.overrideVol}
+                      step="0.1"
+                      min="0"
+                      onChange={(e) => updateAsset(i, 'overrideVol', e.target.value)}
+                      className="w-16 px-2 py-1.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-amber-400 placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                      title={mc('overrideVolTitle')}
+                    />
+                    {/* spacer to match × button width */}
+                    {assets.length > 1 ? <span className="w-[18px] shrink-0" /> : null}
+                  </div>
                 </div>
               ))}
 
@@ -347,6 +386,46 @@ export default function MonteCarlo() {
               <div>
                 <label className={labelClass}>{mc('lookbackYears')}</label>
                 <input type="number" value={lookbackYears} onChange={(e) => setLookbackYears(e.target.value)} min="1" max="20" step="1" className={inputClass} />
+              </div>
+
+              {/* Shrinkage section */}
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 space-y-3">
+                <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{mc('sectionShrinkage')}</p>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className={labelClass}>{mc('shrinkageLabel')}</label>
+                    <span className="text-xs font-mono font-semibold text-gray-700 dark:text-gray-300">
+                      λ = {parseFloat(shrinkageLambda).toFixed(2)}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0" max="1" step="0.05"
+                    value={shrinkageLambda}
+                    onChange={(e) => setShrinkageLambda(e.target.value)}
+                    className="w-full accent-gray-900 dark:accent-gray-100"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                    <span>{mc('shrinkageMin')}</span>
+                    <span>{mc('shrinkageMax')}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelClass}>{mc('longRunReturn')}</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={longRunReturn}
+                      onChange={(e) => setLongRunReturn(e.target.value)}
+                      step="0.5"
+                      min="-99"
+                      className={inputClass + ' pr-7'}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -470,20 +549,34 @@ export default function MonteCarlo() {
                       <th className="text-left pb-2 font-medium">{mc('asset')}</th>
                       <th className="text-right pb-2 font-medium">{mc('annReturn')}</th>
                       <th className="text-right pb-2 font-medium">{mc('annVol')}</th>
+                      <th className="text-right pb-2 font-medium">{mc('source')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.keys(result.annualized_returns).map((ticker) => (
-                      <tr key={ticker} className="border-b border-gray-50 dark:border-gray-800 last:border-0">
-                        <td className="py-2 font-mono font-semibold">{ticker}</td>
-                        <td className={`py-2 text-right font-semibold ${result.annualized_returns[ticker] >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                          {fmt(result.annualized_returns[ticker])}
-                        </td>
-                        <td className="py-2 text-right text-gray-500">
-                          {fmt(result.annualized_volatilities[ticker])}
-                        </td>
-                      </tr>
-                    ))}
+                    {Object.keys(result.annualized_returns).map((ticker) => {
+                      const src = result.return_sources?.[ticker] ?? 'historical'
+                      const srcLabel = src === 'manual'
+                        ? { text: mc('sourceManual'), cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' }
+                        : src === 'shrinkage'
+                        ? { text: mc('sourceShrinkage'), cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' }
+                        : { text: mc('sourceHistorical'), cls: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' }
+                      return (
+                        <tr key={ticker} className="border-b border-gray-50 dark:border-gray-800 last:border-0">
+                          <td className="py-2 font-mono font-semibold">{ticker}</td>
+                          <td className={`py-2 text-right font-semibold ${result.annualized_returns[ticker] >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {fmt(result.annualized_returns[ticker])}
+                          </td>
+                          <td className="py-2 text-right text-gray-500">
+                            {fmt(result.annualized_volatilities[ticker])}
+                          </td>
+                          <td className="py-2 text-right">
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${srcLabel.cls}`}>
+                              {srcLabel.text}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
                 <p className="text-xs text-gray-400 italic">{mc('oasNote')}</p>

@@ -36,6 +36,7 @@ export default defineConfig({
       '/advice': 'http://localhost:8000',
       '/risk-profile': 'http://localhost:8000',
       '/backtest': 'http://localhost:8000',
+      '/monte-carlo': 'http://localhost:8000',
     },
   },
 })
