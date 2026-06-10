@@ -9,6 +9,7 @@ from backend.auth.router import get_current_user
 from backend.services.market_data import get_multiple_prices, get_price_history
 from backend.services.currency import get_ticker_currency, convert
 from backend.models.optimizer import optimize_portfolio
+from backend.models.bl_optimizer import optimize_black_litterman
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -80,6 +81,42 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
     return holdings_out, round(total_value, 2)
 
 
+def _optimize_holdings(holdings: list, risk_score: int, optimize_fn=optimize_portfolio) -> dict:
+    """Fetches price history for the given holdings and returns optimized weights."""
+    if not holdings:
+        raise HTTPException(status_code=400, detail="No holdings to optimize")
+    if len(holdings) < 2:
+        raise HTTPException(status_code=400, detail="Need at least 2 holdings to optimize")
+
+    unique_tickers = list(dict.fromkeys(h.ticker for h in holdings))
+    price_series = {}
+    fetch_errors = []
+    for ticker in unique_tickers:
+        try:
+            hist = get_price_history(ticker, period="1y")
+            if hist.empty or len(hist) < 10:
+                fetch_errors.append(ticker)
+                continue
+            series = hist["Close"]
+            series.index = series.index.normalize().tz_localize(None)
+            price_series[ticker] = series
+        except Exception as exc:  # noqa: BLE001
+            fetch_errors.append(ticker)
+            print(f"[optimize] failed to fetch history for {ticker}: {exc}")
+
+    if len(price_series) < 2:
+        detail = "Could not fetch enough price history to optimise."
+        if fetch_errors:
+            detail += f" Failed tickers: {', '.join(fetch_errors)}."
+        raise HTTPException(status_code=400, detail=detail)
+
+    prices_df = pd.DataFrame(price_series)
+    result = optimize_fn(prices_df, risk_score)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
 # Must come before /{portfolio_id} routes
 @router.get("/list")
 def list_portfolios(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -110,6 +147,22 @@ def get_portfolio_aggregated(current_user: User = Depends(get_current_user), db:
     all_holdings = [h for p in portfolios for h in p.holdings]
     holdings_out, total_value = _build_holdings_out(all_holdings, display_currency)
     return {"holdings": holdings_out, "total_value": total_value, "display_currency": display_currency}
+
+
+# Must come before /{portfolio_id} routes — "optimize" would otherwise be parsed as portfolio_id
+@router.get("/optimize")
+def optimize_aggregated(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Optimizes the user's aggregated holdings (across all portfolios with include_in_aggregated=True) using Black-Litterman."""
+    portfolios = db.query(Portfolio).filter(
+        Portfolio.user_id == current_user.id,
+        Portfolio.include_in_aggregated == True,  # noqa: E712
+    ).all()
+    all_holdings = [h for p in portfolios for h in p.holdings]
+    risk_score = current_user.risk_score or 5
+    return _optimize_holdings(all_holdings, risk_score, optimize_fn=optimize_black_litterman)
 
 
 @router.post("/create", status_code=201)
@@ -303,37 +356,7 @@ def optimize(
         Portfolio.id == portfolio_id,
         Portfolio.user_id == current_user.id,
     ).first()
-    if not portfolio or not portfolio.holdings:
+    if not portfolio:
         raise HTTPException(status_code=400, detail="No holdings to optimize")
-    if len(portfolio.holdings) < 2:
-        raise HTTPException(status_code=400, detail="Need at least 2 holdings to optimize")
-
-    unique_tickers = list(dict.fromkeys(h.ticker for h in portfolio.holdings))
-    price_series = {}
-    fetch_errors = []
-    for ticker in unique_tickers:
-        try:
-            hist = get_price_history(ticker, period="1y")
-            if hist.empty or len(hist) < 10:
-                fetch_errors.append(ticker)
-                continue
-            series = hist["Close"]
-            series.index = series.index.normalize().tz_localize(None)
-            price_series[ticker] = series
-        except Exception as exc:  # noqa: BLE001
-            fetch_errors.append(ticker)
-            print(f"[optimize] failed to fetch history for {ticker}: {exc}")
-
-    if len(price_series) < 2:
-        detail = "Could not fetch enough price history to optimise."
-        if fetch_errors:
-            detail += f" Failed tickers: {', '.join(fetch_errors)}."
-        raise HTTPException(status_code=400, detail=detail)
-
-    prices_df = pd.DataFrame(price_series)
-
     risk_score = current_user.risk_score or 5
-    result = optimize_portfolio(prices_df, risk_score)
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+    return _optimize_holdings(portfolio.holdings, risk_score)

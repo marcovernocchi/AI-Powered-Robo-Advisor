@@ -61,8 +61,7 @@ export const updateHolding = (id, data) =>
   request(`/portfolio/holdings/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteHolding = (id) =>
   request(`/portfolio/holdings/${id}`, { method: 'DELETE' })
-export const optimizePortfolio = (portfolioId) =>
-  request(`/portfolio/optimize/${portfolioId}`)
+export const optimizePortfolio = () => request('/portfolio/optimize')
 
 export async function importPreview(file) {
   const token = localStorage.getItem('token')
