@@ -151,20 +151,28 @@ def get_multiple_prices(tickers: list) -> dict:
 
 
 def get_price_history(ticker: str, period: str = "1y", start_date: str = None) -> pd.DataFrame:
-    """Alpha Vantage first, yfinance fallback."""
+    """Alpha Vantage first, yfinance fallback.
+
+    Returns an empty DataFrame (with Close/Volume columns) if the ticker can't
+    be resolved by either source, e.g. an invalid symbol or ISIN — never raises.
+    """
     df = _av_get_history(ticker, period)
     if df is not None and not df.empty:
         if start_date:
             df = df[df.index >= pd.to_datetime(start_date)]
         return df.dropna()
 
-    ticker_obj = yf.Ticker(ticker)
-    if start_date:
-        from datetime import date
-        hist = ticker_obj.history(start=start_date, end=date.today().isoformat())
-    else:
-        hist = ticker_obj.history(period=period)
-    return hist[["Close", "Volume"]].dropna()
+    try:
+        ticker_obj = yf.Ticker(ticker)
+        if start_date:
+            from datetime import date
+            hist = ticker_obj.history(start=start_date, end=date.today().isoformat())
+        else:
+            hist = ticker_obj.history(period=period)
+        return hist[["Close", "Volume"]].dropna()
+    except Exception as exc:
+        print(f"[market_data] failed to fetch price history for {ticker}: {exc}")
+        return pd.DataFrame(columns=["Close", "Volume"])
 
 
 def get_dividend_history(ticker: str, start_date: str = None) -> pd.DataFrame:

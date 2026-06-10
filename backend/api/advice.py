@@ -15,17 +15,21 @@ def get_advice(current_user: User = Depends(get_current_user), db: Session = Dep
     if not current_user.risk_score:
         raise HTTPException(status_code=400, detail="Complete the risk questionnaire first")
 
-    portfolio = db.query(Portfolio).filter(Portfolio.user_id == current_user.id).first()
+    portfolios = db.query(Portfolio).filter(
+        Portfolio.user_id == current_user.id,
+        Portfolio.include_in_aggregated == True,  # noqa: E712
+    ).all()
+    all_holdings = [h for p in portfolios for h in p.holdings]
     portfolio_summary = {}
 
-    if portfolio and portfolio.holdings:
-        prices = get_multiple_prices([h.ticker for h in portfolio.holdings])
+    if all_holdings:
+        prices = get_multiple_prices([h.ticker for h in all_holdings])
         total = sum(
-            h.shares * (prices.get(h.ticker) or h.avg_buy_price)
-            for h in portfolio.holdings
+            h.shares * ((prices.get(h.ticker) or {}).get("price") or h.avg_buy_price)
+            for h in all_holdings
         )
-        for h in portfolio.holdings:
-            price = prices.get(h.ticker) or h.avg_buy_price
+        for h in all_holdings:
+            price = (prices.get(h.ticker) or {}).get("price") or h.avg_buy_price
             value = h.shares * price
             portfolio_summary[h.ticker] = {
                 "shares": h.shares,

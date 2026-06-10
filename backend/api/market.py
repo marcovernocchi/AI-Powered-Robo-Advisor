@@ -1,5 +1,5 @@
 import yfinance as yf
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from backend.services.market_data import get_price_history, get_stock_info, get_current_price, get_dividend_history
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -19,9 +19,12 @@ def price(ticker: str):
 @router.get("/history/{ticker}")
 def history(ticker: str, period: str = Query(default="1y", enum=PERIODS), start_date: str = Query(default=None)):
     """Retrieves the price history for a given stock ticker over a specified period."""
-    hist = get_price_history(ticker.upper(), period=period, start_date=start_date)
+    symbol = ticker.upper()
+    hist = get_price_history(symbol, period=period, start_date=start_date)
+    if hist.empty:
+        raise HTTPException(status_code=404, detail=f"Price history not available for {symbol}")
     return {
-        "ticker": ticker.upper(),
+        "ticker": symbol,
         "data": hist.reset_index().to_dict(orient="records"),
     }
 

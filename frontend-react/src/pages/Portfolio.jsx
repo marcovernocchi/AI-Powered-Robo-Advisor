@@ -51,12 +51,12 @@ export default function Portfolio() {
     } catch (e) { console.error(e) }
   }
 
-  async function handleOptimize(portfolioId) {
+  async function handleOptimize() {
     setOptError('')
     setOptLoading(true)
     setOptimization(null)
     try {
-      const result = await optimizePortfolio(portfolioId)
+      const result = await optimizePortfolio()
       setOptimization(result)
     } catch (err) {
       setOptError(err.message)
@@ -269,14 +269,14 @@ export default function Portfolio() {
       </Card>
 
       {/* Optimize */}
-      {holdings.length >= 2 && firstPortfolioId && (
+      {holdings.length >= 2 && (
         <Card className="ring-0 border-0 dark:bg-gray-900">
           <Flex>
             <div>
               <Title>{t('portfolio.optimization')}</Title>
               <Text className="text-gray-400">{t('portfolio.optimizationDesc')}</Text>
             </div>
-            <Button variant="secondary" onClick={() => handleOptimize(firstPortfolioId)} loading={optLoading}>
+            <Button variant="secondary" onClick={handleOptimize} loading={optLoading}>
               {t('portfolio.optimize')}
             </Button>
           </Flex>
@@ -288,11 +288,11 @@ export default function Portfolio() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
                   <Text className="text-xs text-gray-400">{t('portfolio.expectedReturn')}</Text>
-                  <p className="font-bold text-emerald-500">{(optimization.expected_return * 100).toFixed(2)}%</p>
+                  <p className="font-bold text-emerald-500">{optimization.expected_annual_return_pct?.toFixed(2) ?? '–'}%</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
                   <Text className="text-xs text-gray-400">{t('portfolio.volatility')}</Text>
-                  <p className="font-bold text-orange-500">{(optimization.volatility * 100).toFixed(2)}%</p>
+                  <p className="font-bold text-orange-500">{optimization.annual_volatility_pct?.toFixed(2) ?? '–'}%</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
                   <Text className="text-xs text-gray-400">{t('portfolio.sharpeRatio')}</Text>
