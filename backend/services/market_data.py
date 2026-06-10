@@ -196,3 +196,26 @@ def get_stock_info(ticker: str) -> dict:
         "52w_low": info.get("fiftyTwoWeekLow"),
         "description": info.get("longBusinessSummary", "")[:400],
     }
+
+
+def get_market_caps(tickers: list[str]) -> dict[str, float | None]:
+    """
+    Fetch market capitalisation for each ticker via yfinance .info.
+
+    .info is the most fragile yfinance call (rate-limits, missing fields).
+    Each ticker is wrapped in its own try/except so a single failure never
+    blocks the rest.  Returns None for any ticker that fails or has no
+    marketCap field.
+    """
+    result: dict[str, float | None] = {}
+    for ticker in tickers:
+        try:
+            info = yf.Ticker(ticker).info
+            cap = info.get("marketCap")
+            if cap is None:
+                print(f"[market_data] marketCap field absent for {ticker}")
+            result[ticker] = float(cap) if cap is not None else None
+        except Exception as exc:
+            print(f"[market_data] failed to fetch market cap for {ticker}: {exc}")
+            result[ticker] = None
+    return result
