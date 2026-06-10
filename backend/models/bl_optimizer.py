@@ -191,7 +191,7 @@ def optimize_black_litterman(
         }
 
     tickers = list(prices.columns)
-    print(f"\n=== Black-Litterman Optimizer ===")
+    print("\n=== Black-Litterman Optimizer ===")
     print(f"Tickers : {tickers}")
     if excluded_history:
         print(f"Excluded (short history): {excluded_history}")

@@ -36,7 +36,7 @@ def optimize_hrp(prices: pd.DataFrame, risk_score: int) -> dict:  # noqa: ARG001
             )
         }
 
-    print(f"\n=== HRP Optimizer ===")
+    print("\n=== HRP Optimizer ===")
     print(f"Tickers : {list(prices.columns)}")
     if excluded_history:
         print(f"Excluded (short history): {excluded_history}")
