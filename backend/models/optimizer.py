@@ -139,10 +139,10 @@ def optimize_portfolio(prices: pd.DataFrame, risk_score: int) -> dict:
         )
 
     result = {
-        "weights": {k: round(v, 4) for k, v in weights.items()},
-        "expected_annual_return_pct": round(ret * 100, 2),
-        "annual_volatility_pct":      round(vol * 100, 2),
-        "sharpe_ratio":               round(sharpe, 3),
+        "weights": {k: float(round(v, 4)) for k, v in weights.items()},
+        "expected_annual_return_pct": float(round(ret * 100, 2)),
+        "annual_volatility_pct":      float(round(vol * 100, 2)),
+        "sharpe_ratio":               float(round(sharpe, 3)),
     }
     if warnings:
         result["warnings"] = warnings
