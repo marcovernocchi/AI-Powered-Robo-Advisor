@@ -109,10 +109,15 @@ def test_optimize_aggregated_uses_black_litterman_with_holdings_from_non_first_p
 
     p1 = _create_portfolio(test_client, headers, "Portfolio 1")
     p2 = _create_portfolio(test_client, headers, "Portfolio 2")
+    assert p1 != p2
 
     # Both holdings live only in the second portfolio.
     _add_holding(test_client, headers, p2, "AAPL", shares=10, avg_buy_price=100.0)
     _add_holding(test_client, headers, p2, "MSFT", shares=5, avg_buy_price=200.0)
+
+    portfolios = {p["id"]: p for p in test_client.get("/portfolio/list", headers=headers).json()}
+    assert portfolios[p1]["holdings_count"] == 0
+    assert portfolios[p2]["holdings_count"] == 2
 
     dates = pd.date_range("2024-01-01", periods=120, freq="B")
 
