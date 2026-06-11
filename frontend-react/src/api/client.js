@@ -64,6 +64,27 @@ export const deleteHolding = (id) =>
 export const optimizePortfolio = () => request('/portfolio/optimize')
 export const getPortfolioMetrics = () => request('/portfolio/metrics')
 
+export async function downloadPortfolioExport(format) {
+  const token = localStorage.getItem('token')
+  const res = await fetch(`/portfolio/export/${format}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.detail || `Export failed (HTTP ${res.status})`)
+  }
+  const disposition = res.headers.get('Content-Disposition') ?? ''
+  const match = disposition.match(/filename="?([^"]+)"?/)
+  const filename = match ? match[1] : `portfolio.${format}`
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export async function importPreview(file) {
   const token = localStorage.getItem('token')
   const form = new FormData()
