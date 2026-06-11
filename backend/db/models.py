@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Date, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Date, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.database import Base
@@ -68,3 +68,22 @@ class PriceCache(Base):
     ticker = Column(String, primary_key=True)
     price = Column(Float, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class OptimizationResult(Base):
+    """Persists the latest optimization result per user.
+
+    One row per user — upserted each time the user runs optimization.
+    weights: JSON dict {ticker: float} of optimized weights in [0, 1].
+    """
+    __tablename__ = "optimization_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    weights = Column(JSON, nullable=False)               # {ticker: weight_float}
+    expected_annual_return_pct = Column(Float, nullable=True)
+    annual_volatility_pct = Column(Float, nullable=True)
+    sharpe_ratio = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")

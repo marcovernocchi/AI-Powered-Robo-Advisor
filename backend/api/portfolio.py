@@ -1,11 +1,15 @@
+import io
+import json
 import numpy as np
 import pandas as pd
+from datetime import date as date_type
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from backend.database import get_db
-from backend.db.models import User, Portfolio, Holding
+from backend.db.models import User, Portfolio, Holding, OptimizationResult
 from backend.auth.router import get_current_user
 from backend.services.market_data import get_multiple_prices, get_price_history
 from backend.services.currency import get_ticker_currency, convert
@@ -240,14 +244,323 @@ def optimize_aggregated(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Optimizes the user's aggregated holdings (across all portfolios with include_in_aggregated=True) using Black-Litterman."""
+    """Optimizes the user's aggregated holdings using Black-Litterman and persists the result."""
     portfolios = db.query(Portfolio).filter(
         Portfolio.user_id == current_user.id,
         Portfolio.include_in_aggregated == True,  # noqa: E712
     ).all()
     all_holdings = [h for p in portfolios for h in p.holdings]
     risk_score = current_user.risk_score or 5
-    return _optimize_holdings(all_holdings, risk_score, optimize_fn=optimize_black_litterman)
+    result = _optimize_holdings(all_holdings, risk_score, optimize_fn=optimize_black_litterman)
+
+    # Persist (upsert) the latest optimization result so exports can read it without recalculating
+    existing = db.query(OptimizationResult).filter(
+        OptimizationResult.user_id == current_user.id
+    ).first()
+    if existing:
+        existing.weights = result.get("weights", {})
+        existing.expected_annual_return_pct = result.get("expected_annual_return_pct")
+        existing.annual_volatility_pct = result.get("annual_volatility_pct")
+        existing.sharpe_ratio = result.get("sharpe_ratio")
+        from datetime import datetime
+        existing.created_at = datetime.utcnow()
+    else:
+        db.add(OptimizationResult(
+            user_id=current_user.id,
+            weights=result.get("weights", {}),
+            expected_annual_return_pct=result.get("expected_annual_return_pct"),
+            annual_volatility_pct=result.get("annual_volatility_pct"),
+            sharpe_ratio=result.get("sharpe_ratio"),
+        ))
+    db.commit()
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Shared helper: build export rows
+# ---------------------------------------------------------------------------
+
+def _build_export_rows(
+    current_user: User, db: Session
+) -> tuple[list[dict], float, float, OptimizationResult | None]:
+    """Return (rows, total_value, total_pnl, opt_result) for export endpoints.
+
+    Each row dict has: ticker, asset_name, asset_type, shares, avg_buy_price,
+    currency, current_price, value, pnl_abs, pnl_pct, weight_pct, opt_weight_pct.
+    opt_weight_pct is None if the user has never run optimization.
+    """
+    portfolios = db.query(Portfolio).filter(
+        Portfolio.user_id == current_user.id,
+        Portfolio.include_in_aggregated == True,  # noqa: E712
+    ).all()
+    all_holdings = [h for p in portfolios for h in p.holdings]
+    if not all_holdings:
+        return [], 0.0, 0.0, None
+
+    display_currency = current_user.display_currency or "USD"
+    prices = get_multiple_prices([h.ticker for h in all_holdings])
+
+    total_value = 0.0
+    raw_rows = []
+    for h in all_holdings:
+        price_data = prices.get(h.ticker, {"price": None, "stale": False})
+        current_price_native = price_data["price"] or h.avg_buy_price
+        native_currency = get_ticker_currency(h.ticker)
+        holding_currency = h.currency or display_currency
+        value = convert(h.shares * current_price_native, native_currency, display_currency)
+        current_price = convert(current_price_native, native_currency, holding_currency)
+        pnl_abs = (current_price - h.avg_buy_price) * h.shares
+        pnl_pct = (current_price - h.avg_buy_price) / h.avg_buy_price * 100 if h.avg_buy_price else 0.0
+        total_value += value
+        raw_rows.append({
+            "ticker": h.ticker,
+            "asset_name": h.asset_name or "",
+            "asset_type": h.asset_type,
+            "shares": h.shares,
+            "avg_buy_price": h.avg_buy_price,
+            "currency": holding_currency,
+            "current_price": round(current_price, 2),
+            "value": round(value, 2),
+            "pnl_abs": round(pnl_abs, 2),
+            "pnl_pct": round(pnl_pct, 2),
+        })
+
+    total_pnl = sum(r["pnl_abs"] for r in raw_rows)
+
+    # Optimized weights from last persisted run (None if never optimized)
+    opt_result = db.query(OptimizationResult).filter(
+        OptimizationResult.user_id == current_user.id
+    ).first()
+    opt_weights: dict = opt_result.weights if opt_result else {}
+
+    rows = []
+    for r in raw_rows:
+        r["weight_pct"] = round(r["value"] / total_value * 100, 2) if total_value else 0.0
+        opt_w = opt_weights.get(r["ticker"])
+        r["opt_weight_pct"] = round(opt_w * 100, 2) if opt_w is not None else None
+        rows.append(r)
+
+    return rows, round(total_value, 2), round(total_pnl, 2), opt_result
+
+
+# ---------------------------------------------------------------------------
+# Export — Excel
+# ---------------------------------------------------------------------------
+
+@router.get("/export/excel")
+def export_excel(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download aggregated portfolio as .xlsx.
+
+    Columns: Ticker, Name, Type, Shares, Avg Buy Price, Currency,
+             Current Price, Value, P&L (abs), P&L (%), Weight (%),
+             Optimized Weight (%) [blank if never optimized].
+    Last row: totals for Value and P&L.
+    """
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, numbers
+    from openpyxl.utils import get_column_letter
+
+    rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db)
+    if not rows:
+        raise HTTPException(status_code=400, detail="No holdings to export")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Portfolio"
+
+    headers = [
+        "Ticker", "Name", "Type", "Shares",
+        "Avg Buy Price", "Currency", "Current Price",
+        "Value", "P&L", "P&L %", "Weight %", "Optimized Weight %",
+    ]
+    header_fill = PatternFill("solid", fgColor="1E3A5F")
+    header_font = Font(bold=True, color="FFFFFF")
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    display_currency = current_user.display_currency or "USD"
+    num_fmt = f'"{display_currency}" #,##0.00'
+
+    for r in rows:
+        opt_w = r["opt_weight_pct"] if r["opt_weight_pct"] is not None else ""
+        ws.append([
+            r["ticker"], r["asset_name"], r["asset_type"], r["shares"],
+            r["avg_buy_price"], r["currency"], r["current_price"],
+            r["value"], r["pnl_abs"], r["pnl_pct"], r["weight_pct"], opt_w,
+        ])
+        row_idx = ws.max_row
+        for col in (5, 7, 8, 9):   # avg buy, current, value, pnl_abs
+            ws.cell(row=row_idx, column=col).number_format = num_fmt
+        ws.cell(row=row_idx, column=10).number_format = '0.00"%"'
+        ws.cell(row=row_idx, column=11).number_format = '0.00"%"'
+        if opt_w != "":
+            ws.cell(row=row_idx, column=12).number_format = '0.00"%"'
+
+    # Totals row
+    total_row = ws.max_row + 1
+    ws.cell(total_row, 1, "TOTAL").font = Font(bold=True)
+    ws.cell(total_row, 8, total_value).number_format = num_fmt
+    ws.cell(total_row, 8).font = Font(bold=True)
+    ws.cell(total_row, 9, total_pnl).number_format = num_fmt
+    ws.cell(total_row, 9).font = Font(bold=True)
+    total_fill = PatternFill("solid", fgColor="D9E1F2")
+    for col in range(1, 13):
+        ws.cell(total_row, col).fill = total_fill
+
+    # Auto column widths
+    for col_cells in ws.columns:
+        max_len = max((len(str(c.value)) if c.value is not None else 0) for c in col_cells)
+        ws.column_dimensions[get_column_letter(col_cells[0].column)].width = min(max_len + 4, 30)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    today = date_type.today().isoformat()
+    username = (current_user.name or current_user.email).replace(" ", "_")
+    filename = f"portfolio_{username}_{today}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Export — PDF
+# ---------------------------------------------------------------------------
+
+@router.get("/export/pdf")
+def export_pdf(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download aggregated portfolio as a formatted PDF report.
+
+    Sections: header (user + date), holdings table, summary block
+    (total value, P&L, and — if a prior optimization exists — return/vol/sharpe),
+    disclaimer.
+    """
+    from fpdf import FPDF
+
+    rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db)
+    if not rows:
+        raise HTTPException(status_code=400, detail="No holdings to export")
+
+    display_currency = current_user.display_currency or "USD"
+    today = date_type.today().strftime("%d %B %Y")
+    username = current_user.name or current_user.email
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_margins(15, 15, 15)
+
+    # ── Header ────────────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "Portfolio Report", ln=True, align="C")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, f"User: {username}   |   Date: {today}", ln=True, align="C")
+    pdf.ln(6)
+
+    # ── Holdings table ────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 9)
+    col_widths = [18, 38, 16, 16, 20, 20, 18, 18, 22]
+    headers_pdf = ["Ticker", "Name", "Type", "Shares", f"Avg Buy\n({display_currency})",
+                   f"Curr Price\n({display_currency})", f"Value\n({display_currency})",
+                   "P&L %", "Weight %"]
+    # Draw table header
+    pdf.set_fill_color(30, 58, 95)
+    pdf.set_text_color(255, 255, 255)
+    for i, (h, w) in enumerate(zip(headers_pdf, col_widths)):
+        pdf.multi_cell(w, 8, h, border=1, align="C", fill=True,
+                       new_x="RIGHT" if i < len(headers_pdf) - 1 else "LMARGIN",
+                       new_y="TOP" if i < len(headers_pdf) - 1 else "NEXT")
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", "", 8)
+
+    for i, r in enumerate(rows):
+        fill = i % 2 == 0
+        pdf.set_fill_color(240, 244, 252) if fill else pdf.set_fill_color(255, 255, 255)
+        pnl_color = (0, 150, 80) if r["pnl_pct"] >= 0 else (200, 0, 0)
+        values = [
+            r["ticker"],
+            (r["asset_name"] or "")[:20],
+            r["asset_type"],
+            f"{r['shares']:.2f}",
+            f"{r['avg_buy_price']:.2f}",
+            f"{r['current_price']:.2f}",
+            f"{r['value']:,.2f}",
+            f"{r['pnl_pct']:+.2f}%",
+            f"{r['weight_pct']:.2f}%",
+        ]
+        row_h = 6
+        for j, (val, w) in enumerate(zip(values, col_widths)):
+            if j == 7:  # P&L % — colour coded
+                pdf.set_text_color(*pnl_color)
+            else:
+                pdf.set_text_color(0, 0, 0)
+            is_last = j == len(values) - 1
+            pdf.multi_cell(w, row_h, val, border=1, align="C", fill=fill,
+                           new_x="RIGHT" if not is_last else "LMARGIN",
+                           new_y="TOP" if not is_last else "NEXT")
+        pdf.set_text_color(0, 0, 0)
+
+    # ── Summary block ─────────────────────────────────────────────────────────
+    pdf.ln(6)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "Summary", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pnl_sign = "+" if total_pnl >= 0 else ""
+    pdf.cell(0, 6, f"Total Portfolio Value:  {display_currency} {total_value:,.2f}", ln=True)
+    pdf.cell(0, 6, f"Total P&L:              {display_currency} {pnl_sign}{total_pnl:,.2f}", ln=True)
+
+    if opt_result:
+        pdf.ln(3)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(0, 6, "Portfolio Metrics  (from last optimization run)", ln=True)
+        pdf.set_font("Helvetica", "", 10)
+        if opt_result.expected_annual_return_pct is not None:
+            pdf.cell(0, 6, f"Expected Annual Return:  {opt_result.expected_annual_return_pct:.2f}%", ln=True)
+        if opt_result.annual_volatility_pct is not None:
+            pdf.cell(0, 6, f"Annual Volatility:       {opt_result.annual_volatility_pct:.2f}%", ln=True)
+        if opt_result.sharpe_ratio is not None:
+            pdf.cell(0, 6, f"Sharpe Ratio:            {opt_result.sharpe_ratio:.2f}", ln=True)
+        opt_date = opt_result.created_at.strftime("%d %b %Y") if opt_result.created_at else "unknown"
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.cell(0, 5, f"Optimization run on: {opt_date}", ln=True)
+    else:
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.cell(0, 6, "Portfolio metrics not available — run Optimize in the Portfolio page first.", ln=True)
+
+    # ── Disclaimer ────────────────────────────────────────────────────────────
+    pdf.ln(8)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(120, 120, 120)
+    pdf.multi_cell(
+        0, 5,
+        "Disclaimer: This document is for informational purposes only and does not "
+        "constitute professional financial advice. Past performance is not indicative "
+        "of future results. Always consult a qualified financial advisor before making "
+        "investment decisions.",
+    )
+
+    buf = io.BytesIO(pdf.output())
+    today_iso = date_type.today().isoformat()
+    safe_name = username.replace(" ", "_")
+    filename = f"portfolio_{safe_name}_{today_iso}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/create", status_code=201)
