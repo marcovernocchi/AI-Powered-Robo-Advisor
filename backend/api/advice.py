@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.database import get_db
@@ -38,8 +40,9 @@ def get_advice(current_user: User = Depends(get_current_user), db: Session = Dep
             }
 
     content = generate_advice(portfolio_summary, current_user.risk_score)
+    content_str = json.dumps(content)   # serialise dict → TEXT for DB storage
 
-    db.add(Advice(user_id=current_user.id, content=content))
+    db.add(Advice(user_id=current_user.id, content=content_str))
     db.commit()
 
     return {"advice": content}
@@ -55,4 +58,12 @@ def advice_history(current_user: User = Depends(get_current_user), db: Session =
         .limit(5)
         .all()
     )
-    return [{"id": a.id, "content": a.content, "created_at": a.created_at.isoformat()} for a in items]
+    result = []
+    for a in items:
+        try:
+            parsed_content = json.loads(a.content)
+        except (json.JSONDecodeError, ValueError):
+            # Legacy plain-text advice stored before structured output was introduced
+            parsed_content = {"is_structured": False, "raw_text": a.content}
+        result.append({"id": a.id, "content": parsed_content, "created_at": a.created_at.isoformat()})
+    return result
