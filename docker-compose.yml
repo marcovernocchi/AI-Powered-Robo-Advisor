@@ -22,3 +22,12 @@ services:
       - API_URL=http://backend:8000
     depends_on:
       - backend
+
+  frontend-react:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
