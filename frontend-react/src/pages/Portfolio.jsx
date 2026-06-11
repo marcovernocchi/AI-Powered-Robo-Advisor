@@ -4,7 +4,7 @@ import {
   Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell,
   Flex, DonutChart, Legend,
 } from '@tremor/react'
-import { getPortfolio, getPortfolioList, deleteHolding, optimizePortfolio } from '../api/client'
+import { getPortfolio, getPortfolioList, deleteHolding, optimizePortfolio, downloadPortfolioExport } from '../api/client'
 import AddTransactionModal from '../components/AddTransactionModal'
 import EditHoldingModal from '../components/EditHoldingModal'
 import ImportModal from '../components/ImportModal'
@@ -24,6 +24,20 @@ export default function Portfolio() {
   const [sortKey, setSortKey]           = useState(null)
   const [sortDir, setSortDir]           = useState('desc')
   const [chartView, setChartView]       = useState('type')
+  const [exportLoading, setExportLoading] = useState(null)   // 'excel' | 'pdf' | null
+  const [exportError, setExportError]   = useState('')
+
+  async function handleExport(format) {
+    setExportError('')
+    setExportLoading(format)
+    try {
+      await downloadPortfolioExport(format)
+    } catch (err) {
+      setExportError(err.message)
+    } finally {
+      setExportLoading(null)
+    }
+  }
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
@@ -189,9 +203,34 @@ export default function Portfolio() {
       {/* Holdings table */}
       <Card className="ring-0 border-0 dark:bg-gray-900">
         <Flex>
-          <Title>{t('portfolio.holdings')}</Title>
-          <Text className="text-gray-400 text-sm">{fmtCurrency(total)}</Text>
+          <div>
+            <Title>{t('portfolio.holdings')}</Title>
+            <Text className="text-gray-400 text-sm">{fmtCurrency(total)}</Text>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="xs"
+              variant="secondary"
+              disabled={holdings.length === 0 || exportLoading !== null}
+              loading={exportLoading === 'excel'}
+              onClick={() => handleExport('excel')}
+            >
+              Export Excel
+            </Button>
+            <Button
+              size="xs"
+              variant="secondary"
+              disabled={holdings.length === 0 || exportLoading !== null}
+              loading={exportLoading === 'pdf'}
+              onClick={() => handleExport('pdf')}
+            >
+              Export PDF
+            </Button>
+          </div>
         </Flex>
+        {exportError && (
+          <p className="mt-2 text-xs text-red-500">{exportError}</p>
+        )}
 
         {holdings.length > 0 ? (
           <Table className="mt-4">
