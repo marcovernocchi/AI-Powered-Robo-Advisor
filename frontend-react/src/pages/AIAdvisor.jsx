@@ -328,11 +328,11 @@ export default function AIAdvisor() {
 
   function buildInitialAnswers() {
     const a = {}
-    SECTION_A.forEach((q) => (a[q.key] = 1))
-    SECTION_B.forEach((q) => (a[q.key] = 1))
-    a.b4 = SECTION_B4_OPTIONS[0]
-    SECTION_C.forEach((q) => (a[q.key] = 1))
-    SECTION_D.forEach((q) => (a[q.key] = 1))
+    SECTION_A.forEach((q) => (a[q.key] = null))
+    SECTION_B.forEach((q) => (a[q.key] = null))
+    a.b4 = ''
+    SECTION_C.forEach((q) => (a[q.key] = null))
+    SECTION_D.forEach((q) => (a[q.key] = null))
     return a
   }
 
@@ -401,6 +401,14 @@ export default function AIAdvisor() {
 
   async function handleSubmitQuestionnaire() {
     setSubmitError('')
+
+    const allQuestions = [...SECTION_A, ...SECTION_B, ...SECTION_C, ...SECTION_D]
+    const hasUnanswered = allQuestions.some((q) => answers[q.key] == null) || !answers.b4
+    if (hasUnanswered) {
+      setSubmitError(t('advisor.answerAllRequired'))
+      return
+    }
+
     setSubmitLoading(true)
     try {
       const payload = {
@@ -540,6 +548,7 @@ export default function AIAdvisor() {
                   onChange={(e) => setAnswer('b4', e.target.value)}
                   className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
                 >
+                  <option value="" disabled>{t('advisor.b4Placeholder')}</option>
                   {SECTION_B4_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
