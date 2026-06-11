@@ -93,7 +93,8 @@ def _make_risk_question(a_val=2, b_val=2, c_val=2, d_correct=True):
 def test_risk_score_bounds():
     for val in [1, 2, 3, 4]:
         q = _make_risk_question(a_val=val, b_val=val, c_val=val)
-        score, kl = calculate_risk_score(q)
+        result = calculate_risk_score(q)
+        score, kl = result["total"], result["knowledge_level"]
         assert 8 <= score <= 68
         assert kl in ("none", "basic", "expert")
 

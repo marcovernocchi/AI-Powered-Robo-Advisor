@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
@@ -118,6 +119,85 @@ def _optimize_holdings(holdings: list, risk_score: int, optimize_fn=optimize_por
 
 
 # Must come before /{portfolio_id} routes
+@router.get("/metrics")
+def portfolio_metrics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Computes return, volatility, equity share, and diversification for the user's aggregated portfolio.
+
+    Normalisation used by the portfolio radar chart (Radar 2 in AIAdvisor):
+      - expected_annual_return_pct : historical annualised weighted return (%)
+      - annual_volatility_pct      : annualised portfolio volatility (%)
+      - equity_share_pct           : % of total value in equity/ETF holdings
+      - n_effective_assets         : 1 / HHI (Herfindahl) — effective number of positions
+    """
+    portfolios = db.query(Portfolio).filter(
+        Portfolio.user_id == current_user.id,
+        Portfolio.include_in_aggregated == True,  # noqa: E712
+    ).all()
+    all_holdings = [h for p in portfolios for h in p.holdings]
+    if not all_holdings:
+        raise HTTPException(status_code=400, detail="No holdings in aggregated portfolio")
+
+    prices = get_multiple_prices([h.ticker for h in all_holdings])
+    values: dict[str, float] = {}
+    equity_value = 0.0
+    for h in all_holdings:
+        price = (prices.get(h.ticker) or {}).get("price") or h.avg_buy_price
+        v = h.shares * price
+        values[h.ticker] = values.get(h.ticker, 0.0) + v
+        if h.asset_type in ("equity", "etf"):
+            equity_value += v
+
+    total_value = sum(values.values())
+    if total_value == 0:
+        raise HTTPException(status_code=400, detail="Total portfolio value is zero")
+
+    weights = {t: v / total_value for t, v in values.items()}
+
+    # Fetch 1-year price history for each ticker; skip tickers with too few points
+    price_series: dict[str, pd.Series] = {}
+    for ticker in weights:
+        try:
+            hist = get_price_history(ticker, period="1y")
+            if not hist.empty and len(hist) >= 20:
+                s = hist["Close"]
+                s.index = s.index.normalize().tz_localize(None)
+                price_series[ticker] = s
+        except Exception as exc:  # noqa: BLE001
+            print(f"[metrics] failed to fetch history for {ticker}: {exc}")
+
+    if not price_series:
+        raise HTTPException(status_code=400, detail="Could not fetch price history for any holding")
+
+    prices_df = pd.DataFrame(price_series).dropna()
+    returns_df = prices_df.pct_change().dropna()
+
+    mean_ret_annual = returns_df.mean() * 252
+    cov_annual = returns_df.cov() * 252
+
+    # Re-normalise weights to only the tickers that have price history
+    w_arr = np.array([weights.get(t, 0.0) for t in prices_df.columns])
+    w_sum = w_arr.sum()
+    if w_sum > 0:
+        w_arr = w_arr / w_sum
+
+    port_return = float(w_arr @ mean_ret_annual.values)
+    port_vol = float(np.sqrt(w_arr @ cov_annual.values @ w_arr))
+
+    # Herfindahl diversification index
+    hhi = sum(ww ** 2 for ww in weights.values())
+    n_eff = 1.0 / hhi if hhi > 0 else 1.0
+
+    return {
+        "expected_annual_return_pct": round(port_return * 100, 2),
+        "annual_volatility_pct": round(port_vol * 100, 2),
+        "equity_share_pct": round(equity_value / total_value * 100, 2),
+        "n_effective_assets": round(n_eff, 2),
+    }
+
+
 @router.get("/list")
 def list_portfolios(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Retrieves a list of portfolios for the current user, including their holdings and total value."""

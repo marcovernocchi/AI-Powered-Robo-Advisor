@@ -62,6 +62,7 @@ export const updateHolding = (id, data) =>
 export const deleteHolding = (id) =>
   request(`/portfolio/holdings/${id}`, { method: 'DELETE' })
 export const optimizePortfolio = () => request('/portfolio/optimize')
+export const getPortfolioMetrics = () => request('/portfolio/metrics')
 
 export async function importPreview(file) {
   const token = localStorage.getItem('token')
@@ -104,6 +105,9 @@ export const getAdviceHistory = () => request('/advice/history')
 
 export const setRiskProfile = (answers) =>
   request('/risk-profile', { method: 'POST', body: JSON.stringify(answers) })
+
+export const explainRiskProfile = (data) =>
+  request('/risk-profile/explain', { method: 'POST', body: JSON.stringify(data) })
 
 export const runBacktest = (params) =>
   request('/backtest', { method: 'POST', body: JSON.stringify(params) })
