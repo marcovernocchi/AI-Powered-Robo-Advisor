@@ -10,6 +10,7 @@ pydantic-settings>=2.0.0
 email-validator>=2.0.0
 
 openpyxl>=3.1.0
+fpdf2>=2.7.0
 
 # Finance / ML
 yfinance>=0.2.40
