@@ -1,5 +1,4 @@
 import io
-import json
 import numpy as np
 import pandas as pd
 from datetime import date as date_type
@@ -361,7 +360,7 @@ def export_excel(
     Last row: totals for Value and P&L.
     """
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, numbers
+    from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
 
     rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db)
