@@ -5,7 +5,6 @@ These tests stub the Groq client so no real API call is made.
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from backend.services.llm_advisor import generate_advice
 
