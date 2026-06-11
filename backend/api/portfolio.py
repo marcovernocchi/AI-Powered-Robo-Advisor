@@ -69,6 +69,7 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
             "id": h.id,
             "portfolio_id": h.portfolio_id,
             "ticker": h.ticker,
+            "asset_type": h.asset_type,
             "shares": h.shares,
             "avg_buy_price": h.avg_buy_price,
             "currency": holding_currency,
@@ -143,12 +144,15 @@ def portfolio_metrics(
     prices = get_multiple_prices([h.ticker for h in all_holdings])
     values: dict[str, float] = {}
     equity_value = 0.0
+    defensive_value = 0.0
     for h in all_holdings:
         price = (prices.get(h.ticker) or {}).get("price") or h.avg_buy_price
         v = h.shares * price
         values[h.ticker] = values.get(h.ticker, 0.0) + v
         if h.asset_type in ("equity", "etf"):
             equity_value += v
+        if h.asset_type in ("bond", "cash"):
+            defensive_value += v
 
     total_value = sum(values.values())
     if total_value == 0:
@@ -194,6 +198,7 @@ def portfolio_metrics(
         "expected_annual_return_pct": round(port_return * 100, 2),
         "annual_volatility_pct": round(port_vol * 100, 2),
         "equity_share_pct": round(equity_value / total_value * 100, 2),
+        "defensive_share_pct": round(defensive_value / total_value * 100, 2),
         "n_effective_assets": round(n_eff, 2),
     }
 

@@ -102,15 +102,23 @@ function MiFIDRadar({ sectionScores, riskScore }) {
 //   Expected Return   : clamp [−5%, +25%]  →  (val + 5) / 30 * 100
 //   Safety (Low Risk) : inverted volatility, clamp [0%, 40%]  →  (1 − vol/40) * 100
 //   Diversification   : effective N (1/HHI), clamp [1, 20]   →  (n − 1) / 19 * 100
-//   Equity Share      : direct % 0–100
+//   Equity Share      : direct % 0–100 (equity + ETF)
+//   Balance           : (1 − HHI) × 100; higher = more balanced; current uses HHI = 1/N_eff
+//   Defensive Share   : direct % 0–100 (bond + cash)
 // For the RECOMMENDED portfolio: return/vol from /portfolio/optimize;
-//   equity share & n_eff computed from optimize weights + holdings asset_type.
-// For the CURRENT portfolio: all four metrics from /portfolio/metrics.
+//   equity share, defensive share, HHI computed from optimize weights + holdings asset_type.
+// For the CURRENT portfolio: all metrics from /portfolio/metrics.
 // ---------------------------------------------------------------------------
-function normReturn(v) { return Math.max(0, Math.min(100, (v + 5) / 30 * 100)) }
-function normSafety(v) { return Math.max(0, Math.min(100, (1 - v / 40) * 100)) }
-function normDivers(v) { return Math.max(0, Math.min(100, (v - 1) / 19 * 100)) }
-function normEquity(v) { return Math.max(0, Math.min(100, v)) }
+function normReturn(v)    { return Math.max(0, Math.min(100, (v + 5) / 30 * 100)) }
+function normSafety(v)    { return Math.max(0, Math.min(100, (1 - v / 40) * 100)) }
+function normDivers(v)    { return Math.max(0, Math.min(100, (v - 1) / 19 * 100)) }
+function normEquity(v)    { return Math.max(0, Math.min(100, v)) }
+// Concentration/Balance: normBalance(HHI) = (1 − HHI) × 100
+// HHI = Σwi² ∈ [1/N, 1]. Higher score = more balanced (less concentrated).
+// For current portfolio use HHI = 1/N_eff (exact inverse).
+function normBalance(hhi) { return Math.max(0, Math.min(100, (1 - hhi) * 100)) }
+// Defensive Share: direct % of portfolio value in bond/cash assets. 0–100.
+function normDefensive(v) { return Math.max(0, Math.min(100, v)) }
 
 function PortfolioRadar({ currentMetrics, optimizeData, holdings }) {
   // Derive equity share for the recommended portfolio using optimize weights
@@ -123,10 +131,16 @@ function PortfolioRadar({ currentMetrics, optimizeData, holdings }) {
       ['equity', 'etf'].includes(assetTypeByTicker[ticker] || '') ? sum + w * 100 : sum,
     0,
   )
+  const recDefensiveShare = Object.entries(optimizeData.weights).reduce(
+    (sum, [ticker, w]) =>
+      ['bond', 'cash'].includes(assetTypeByTicker[ticker] || '') ? sum + w * 100 : sum,
+    0,
+  )
 
-  // Effective N for recommended portfolio
-  const hhi = Object.values(optimizeData.weights).reduce((s, w) => s + w * w, 0)
-  const recNEff = hhi > 0 ? 1 / hhi : 1
+  // HHI = Σwi² for recommended. For current: 1/N_eff (exact inverse).
+  const recHHI = Object.values(optimizeData.weights).reduce((s, w) => s + w * w, 0)
+  const recNEff = recHHI > 0 ? 1 / recHHI : 1
+  const curHHI = currentMetrics.n_effective_assets > 0 ? 1 / currentMetrics.n_effective_assets : 1
 
   const data = [
     {
@@ -148,6 +162,16 @@ function PortfolioRadar({ currentMetrics, optimizeData, holdings }) {
       axis: 'Equity Share',
       recommended: Math.round(normEquity(recEquityShare)),
       current: Math.round(normEquity(currentMetrics.equity_share_pct)),
+    },
+    {
+      axis: 'Balance',
+      recommended: Math.round(normBalance(recHHI)),
+      current: Math.round(normBalance(curHHI)),
+    },
+    {
+      axis: 'Defensive Share',
+      recommended: Math.round(normDefensive(recDefensiveShare)),
+      current: Math.round(normDefensive(currentMetrics.defensive_share_pct)),
     },
   ]
 
@@ -268,8 +292,14 @@ function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
       ['equity', 'etf'].includes(assetTypeByTicker[ticker] || '') ? sum + w * 100 : sum,
     0,
   )
-  const hhi = Object.values(optimizeData.weights).reduce((s, w) => s + w * w, 0)
-  const recNEff = hhi > 0 ? 1 / hhi : 1
+  const recDefensiveShare = Object.entries(optimizeData.weights).reduce(
+    (sum, [ticker, w]) =>
+      ['bond', 'cash'].includes(assetTypeByTicker[ticker] || '') ? sum + w * 100 : sum,
+    0,
+  )
+  const recHHI = Object.values(optimizeData.weights).reduce((s, w) => s + w * w, 0)
+  const recNEff = recHHI > 0 ? 1 / recHHI : 1
+  const curHHI = currentMetrics.n_effective_assets > 0 ? 1 / currentMetrics.n_effective_assets : 1
 
   const rows = [
     {
@@ -295,6 +325,18 @@ function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
       rec: `${recEquityShare.toFixed(1)}%`,
       cur: `${currentMetrics.equity_share_pct.toFixed(1)}%`,
       note: '% of portfolio in equity/ETF assets. Direct 0–100 scale.',
+    },
+    {
+      axis: 'Balance',
+      rec: `HHI ${recHHI.toFixed(3)}`,
+      cur: `HHI ${curHHI.toFixed(3)}`,
+      note: 'Balance = (1 − HHI) × 100. Higher = less concentrated. HHI = Σwi² (1 = mono-asset, ~0 = equally spread).',
+    },
+    {
+      axis: 'Defensive Share',
+      rec: `${recDefensiveShare.toFixed(1)}%`,
+      cur: `${currentMetrics.defensive_share_pct.toFixed(1)}%`,
+      note: '% of portfolio in bond/cash assets. Direct 0–100 scale.',
     },
   ]
 
