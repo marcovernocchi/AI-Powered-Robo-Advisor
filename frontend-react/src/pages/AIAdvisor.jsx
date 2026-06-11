@@ -85,8 +85,8 @@ function MiFIDRadar({ sectionScores, riskScore }) {
         <Radar
           name={`Band ${band} Benchmark`}
           dataKey="benchmark"
-          stroke="#9ca3af"
-          fill="#9ca3af"
+          stroke="#10b981"
+          fill="#10b981"
           fillOpacity={0.15}
           strokeDasharray="5 5"
         />
