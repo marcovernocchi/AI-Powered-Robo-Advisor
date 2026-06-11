@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { LangProvider } from './context/LangContext'
@@ -14,8 +14,13 @@ import MonteCarlo from './pages/MonteCarlo'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
+  const location = useLocation()
   if (loading) return null
-  return user ? children : <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/login" replace />
+  if (!user.risk_score && location.pathname !== '/advisor') {
+    return <Navigate to="/advisor" replace />
+  }
+  return children
 }
 
 function PublicRoute({ children }) {
