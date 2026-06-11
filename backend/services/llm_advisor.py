@@ -59,6 +59,62 @@ Keep language clear and jargon-free. End with a one-sentence disclaimer that thi
 
 
 # ---------------------------------------------------------------------------
+# MiFID II risk profile plain-language explanation
+# ---------------------------------------------------------------------------
+
+def generate_risk_explanation(
+    risk_score: int,
+    section_scores: dict,
+    bands: dict,
+    prudence_applied: bool,
+    knowledge_level: str,
+) -> str:
+    """Generate a personalised plain-language explanation of the user's MiFID II risk profile.
+
+    Only real scoring data from the algorithm is passed.
+    The model is explicitly instructed not to invent numbers or percentages.
+    """
+    profile = _risk_label(risk_score)
+
+    if prudence_applied:
+        prudence_note = (
+            f"The prudence rule WAS applied: Financial Situation (band {bands['A']}) "
+            f"and Risk Attitude (band {bands['C']}) diverged by more than one band, "
+            f"so the total score was capped to band {min(bands['A'], bands['C'])}."
+        )
+    else:
+        prudence_note = (
+            f"The prudence rule was NOT triggered: Financial Situation (band {bands['A']}) "
+            f"and Risk Attitude (band {bands['C']}) are within one band of each other."
+        )
+
+    prompt = f"""You are a financial educator explaining a MiFID II suitability assessment to a retail investor.
+Be plain, concrete, and honest. Do NOT invent any numbers, percentages, or return figures beyond what is given below.
+
+Assessment results (do not alter these numbers):
+- Total risk score: {risk_score}/68  →  Profile: {profile}
+- Section A – Financial Situation (max 32): {section_scores['A']} points
+- Section B – Investment Experience (max 12): {section_scores['B']} points
+- Section C – Risk Attitude (max 24): {section_scores['C']} points
+- Section D – Financial Knowledge (max 5 correct): {section_scores['D']} correct  →  {knowledge_level} level
+- {prudence_note}
+
+Write exactly 2 paragraphs (4–5 sentences each):
+1. What this profile means in practical terms: what investment types fit, what level of price swings to expect, and a typical time horizon for this profile.
+2. What the investor should pay attention to given their specific sub-scores — highlight any notable mismatch or gap (e.g. if knowledge is low relative to risk attitude, or if financial situation limits room for risky assets).
+
+Plain English only. No bullet points. No invented numbers. End the second paragraph with one sentence reminding the reader this is educational content, not personalised financial advice."""
+
+    response = _get_client().chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=420,
+        temperature=0.5,
+    )
+    return response.choices[0].message.content
+
+
+# ---------------------------------------------------------------------------
 # Black-Litterman views from LLM
 # ---------------------------------------------------------------------------
 

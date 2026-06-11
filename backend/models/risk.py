@@ -69,8 +69,15 @@ def knowledge_level(d: SectionD) -> str:
     return "expert"
 
 
-def calculate_risk_score(q: RiskQuestion) -> tuple[int, str]:
-    """Returns (total_score 8–68, knowledge_level).
+def calculate_risk_score(q: RiskQuestion) -> dict:
+    """Returns a dict with total score, section scores, bands, and prudence rule details.
+
+    Keys:
+      total           – capped total score 8–68
+      knowledge_level – 'none' | 'basic' | 'expert'
+      section_scores  – {A: int, B: int, C: int, D: int}
+      bands           – {A: int, C: int}  (1–4 per section)
+      prudence_applied – bool
 
     Prudence rule: if Section A and Section C implied bands diverge by more than
     one band, the total is capped at the upper bound of the more conservative band.
@@ -80,18 +87,28 @@ def calculate_risk_score(q: RiskQuestion) -> tuple[int, str]:
     score_b = q.section_b.b1 + q.section_b.b2 + q.section_b.b3
     score_c = (q.section_c.c1 + q.section_c.c2 + q.section_c.c3
                + q.section_c.c4 + q.section_c.c5 + q.section_c.c6)
+    score_d = sum([q.section_d.d11, q.section_d.d12, q.section_d.d13,
+                   q.section_d.d14, q.section_d.d15])
 
     band_a = _section_band(score_a, 32)
     band_c = _section_band(score_c, 24)
 
     total = score_a + score_b + score_c
+    prudence_applied = False
 
     if abs(band_a - band_c) > 1:
         conservative_band = min(band_a, band_c)
         total = min(total, _BAND_MAX[conservative_band])
+        prudence_applied = True
 
     kl = knowledge_level(q.section_d)
-    return total, kl
+    return {
+        "total": total,
+        "knowledge_level": kl,
+        "section_scores": {"A": score_a, "B": score_b, "C": score_c, "D": score_d},
+        "bands": {"A": band_a, "C": band_c},
+        "prudence_applied": prudence_applied,
+    }
 
 
 def risk_label(score: int) -> str:

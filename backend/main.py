@@ -11,7 +11,9 @@ from backend.api.market import router as market_router
 from backend.api.advice import router as advice_router
 from backend.api.backtesting import router as backtesting_router
 from backend.api.monte_carlo import router as monte_carlo_router
+from pydantic import BaseModel as _BaseModel
 from backend.models.risk import RiskQuestion, calculate_risk_score, risk_label
+from backend.services.llm_advisor import generate_risk_explanation
 
 app = FastAPI(title="AI Robo-Advisor API", version="1.0.0")
 
@@ -48,7 +50,40 @@ def set_risk_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    score, kl = calculate_risk_score(answers)
+    result = calculate_risk_score(answers)
+    score = result["total"]
     current_user.risk_score = score
     db.commit()
-    return {"risk_score": score, "risk_profile": risk_label(score), "knowledge_level": kl}
+    return {
+        "risk_score": score,
+        "risk_profile": risk_label(score),
+        "knowledge_level": result["knowledge_level"],
+        "section_scores": result["section_scores"],
+        "bands": result["bands"],
+        "prudence_applied": result["prudence_applied"],
+    }
+
+
+class _RiskExplainRequest(_BaseModel):
+    risk_score: int
+    section_scores: dict
+    bands: dict
+    prudence_applied: bool
+    knowledge_level: str
+
+
+@app.post("/risk-profile/explain")
+def explain_risk_profile(
+    data: _RiskExplainRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Calls the LLM to generate a plain-language explanation of the user's MiFID II profile.
+    Only real scoring data is passed; the model is instructed not to invent numbers."""
+    explanation = generate_risk_explanation(
+        risk_score=data.risk_score,
+        section_scores=data.section_scores,
+        bands=data.bands,
+        prudence_applied=data.prudence_applied,
+        knowledge_level=data.knowledge_level,
+    )
+    return {"explanation": explanation}
