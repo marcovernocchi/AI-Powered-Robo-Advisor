@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Component } from 'react'
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Radar, Legend, ResponsiveContainer,
@@ -350,26 +350,26 @@ function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
   const rows = [
     {
       axis: 'Expected Return',
-      rec: `${optimizeData.expected_annual_return_pct.toFixed(1)}%`,
-      cur: `${currentMetrics.expected_annual_return_pct.toFixed(1)}%`,
+      rec: `${optimizeData.expected_annual_return_pct?.toFixed(1) ?? '–'}%`,
+      cur: `${currentMetrics.expected_annual_return_pct?.toFixed(1) ?? '–'}%`,
       note: 'Annualised historical return. Scale: −5% → 0, +25% → 100.',
     },
     {
       axis: 'Safety (Low Risk)',
-      rec: `vol ${optimizeData.annual_volatility_pct.toFixed(1)}%`,
-      cur: `vol ${currentMetrics.annual_volatility_pct.toFixed(1)}%`,
+      rec: `vol ${optimizeData.annual_volatility_pct?.toFixed(1) ?? '–'}%`,
+      cur: `vol ${currentMetrics.annual_volatility_pct?.toFixed(1) ?? '–'}%`,
       note: 'Inverted volatility. Higher = safer (lower price swings). Scale: 40% vol → 0, 0% vol → 100.',
     },
     {
       axis: 'Diversification',
       rec: `N_eff ${recNEff.toFixed(1)}`,
-      cur: `N_eff ${currentMetrics.n_effective_assets.toFixed(1)}`,
+      cur: `N_eff ${currentMetrics.n_effective_assets?.toFixed(1) ?? '–'}`,
       note: 'Effective number of positions (1/Herfindahl). Scale: 1 position → 0, 20 positions → 100.',
     },
     {
       axis: 'Equity Share',
       rec: `${recEquityShare.toFixed(1)}%`,
-      cur: `${currentMetrics.equity_share_pct.toFixed(1)}%`,
+      cur: `${currentMetrics.equity_share_pct?.toFixed(1) ?? '–'}%`,
       note: '% of portfolio in equity/ETF assets. Direct 0–100 scale.',
     },
     {
@@ -381,7 +381,7 @@ function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
     {
       axis: 'Defensive Share',
       rec: `${recDefensiveShare.toFixed(1)}%`,
-      cur: `${currentMetrics.defensive_share_pct.toFixed(1)}%`,
+      cur: `${currentMetrics.defensive_share_pct?.toFixed(1) ?? '–'}%`,
       note: '% of portfolio in bond/cash assets. Direct 0–100 scale.',
     },
   ]
@@ -401,10 +401,33 @@ function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Error Boundary — catches render errors in this page without a white screen
+// ---------------------------------------------------------------------------
+class AIAdvisorErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 p-6 text-sm text-red-700 dark:text-red-300">
+          <p className="font-semibold mb-1">Something went wrong loading the AI Advisor.</p>
+          <p className="text-xs text-red-500">{this.state.error?.message}</p>
+          <button
+            className="mt-3 text-xs underline"
+            onClick={() => this.setState({ error: null })}
+          >Try again</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 // ===========================================================================
 // Main component
 // ===========================================================================
-export default function AIAdvisor() {
+function AIAdvisorInner() {
   const { user, setUser } = useAuth()
   const { t } = useLang()
 
@@ -820,8 +843,15 @@ export default function AIAdvisor() {
                       <span>Generated on {item.created_at.slice(0, 10)}</span>
                       <span className="text-gray-400 group-open:rotate-180 transition-transform">▾</span>
                     </summary>
-                    <div className="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                      {item.content}
+                    <div className="px-4 pb-4">
+                      {typeof item.content === 'object' && item.content?.is_structured
+                        ? <StructuredAdvice advice={item.content} />
+                        : (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                            {item.content?.raw_text ?? (typeof item.content === 'string' ? item.content : JSON.stringify(item.content))}
+                          </p>
+                        )
+                      }
                     </div>
                   </details>
                 ))}
@@ -831,5 +861,13 @@ export default function AIAdvisor() {
         </>
       )}
     </div>
+  )
+}
+
+export default function AIAdvisor() {
+  return (
+    <AIAdvisorErrorBoundary>
+      <AIAdvisorInner />
+    </AIAdvisorErrorBoundary>
   )
 }
