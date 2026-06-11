@@ -12,6 +12,52 @@ import { useAuth } from '../context/AuthContext'
 import { useLang } from '../context/LangContext'
 
 // ---------------------------------------------------------------------------
+// Structured advice renderer
+// ---------------------------------------------------------------------------
+
+function StructuredAdvice({ advice }) {
+  const sections = [
+    { key: 'assessment', label: 'Assessment', icon: '📊' },
+    { key: 'outlook',    label: 'Outlook',    icon: '🔭' },
+  ]
+  return (
+    <div className="mt-4 space-y-3">
+      {advice.weights_verified === false && advice.weights_note && (
+        <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded px-3 py-2">
+          {advice.weights_note}
+        </p>
+      )}
+      {sections.map(({ key, label, icon }) => advice[key] && (
+        <div key={key} className="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+            {icon} {label}
+          </p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{advice[key]}</p>
+        </div>
+      ))}
+      {advice.suggestions?.length > 0 && (
+        <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+            💡 Suggestions
+          </p>
+          <ul className="space-y-1">
+            {advice.suggestions.map((s, i) => (
+              <li key={i} className="flex gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <span className="text-blue-500 font-bold shrink-0">{i + 1}.</span>
+                {s}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {advice.disclaimer && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 italic px-1">{advice.disclaimer}</p>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -392,7 +438,7 @@ export default function AIAdvisor() {
   const [submitLoading, setSubmitLoading] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
-  const [advice, setAdvice] = useState('')
+  const [advice, setAdvice] = useState(null)
   const [adviceLoading, setAdviceLoading] = useState(false)
   const [adviceError, setAdviceError] = useState('')
   const [history, setHistory] = useState([])
@@ -497,7 +543,7 @@ export default function AIAdvisor() {
   async function handleGenerateAdvice() {
     setAdviceError('')
     setAdviceLoading(true)
-    setAdvice('')
+    setAdvice(null)
     try {
       const result = await generateAdvice()
       setAdvice(result.advice)
@@ -704,11 +750,15 @@ export default function AIAdvisor() {
             </div>
             {adviceError && <p className="mt-3 text-sm text-red-500">{adviceError}</p>}
             {advice && (
-              <div className="mt-4 prose prose-sm dark:prose-invert max-w-none">
-                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {advice}
-                </div>
-              </div>
+              advice.is_structured
+                ? <StructuredAdvice advice={advice} />
+                : (
+                  <div className="mt-4">
+                    <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                      {advice.raw_text ?? String(advice)}
+                    </div>
+                  </div>
+                )
             )}
           </Card>
 

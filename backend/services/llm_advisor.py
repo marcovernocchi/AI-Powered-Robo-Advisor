@@ -24,7 +24,31 @@ def _risk_label(score: int) -> str:
     return "aggressive (high risk)"
 
 
-def generate_advice(portfolio_data: dict, risk_score: int) -> str:
+def generate_advice(portfolio_data: dict, risk_score: int) -> dict:
+    """Return a structured advice payload.
+
+    Structured shape (is_structured=True):
+        assessment      : str
+        suggestions     : list[str]  (3 items)
+        outlook         : str
+        disclaimer      : str
+        weights_verified: True | False | None
+            True  — all declared weights match actual portfolio (±5 pp)
+            False — at least one declared weight mismatches actual data
+            None  — LLM did not populate referenced_weights (check skipped)
+        weights_note    : str | None — shown to user when weights_verified is False
+
+    Fallback shape (is_structured=False):
+        raw_text: str   — LLM output returned as-is
+
+    NOTE: the hallucination check covers ONLY weights explicitly listed in
+    referenced_weights. Other numbers in the text (returns, volatility,
+    drawdown, suggested allocation changes, years) are NOT validated —
+    doing so would produce false positives.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
     profile = _risk_label(risk_score)
     portfolio_str = (
         "\n".join(
@@ -35,27 +59,91 @@ def generate_advice(portfolio_data: dict, risk_score: int) -> str:
         else "  No holdings yet."
     )
 
+    # ── JSON-structured prompt ────────────────────────────────────────────────
     prompt = f"""You are a professional financial advisor providing personalized investment advice.
+Respond with ONLY a valid JSON object — no markdown fences, no text outside the JSON.
 
 User profile:
 - Risk tolerance: {profile} (score {risk_score}/68)
 - Current portfolio:
 {portfolio_str}
 
-Write 3 short paragraphs:
-1. Assessment: how well does this portfolio match the user's risk profile?
-2. Suggestions: concrete rebalancing or diversification actions
-3. Outlook: key market considerations for a {profile} investor right now
+Return this exact JSON structure:
+{{
+  "assessment": "<1 paragraph: how well this portfolio matches the user's risk profile>",
+  "suggestions": [
+    "<concrete rebalancing or diversification action 1>",
+    "<concrete rebalancing or diversification action 2>",
+    "<concrete rebalancing or diversification action 3>"
+  ],
+  "outlook": "<1 paragraph: key market considerations for a {profile} investor right now>",
+  "disclaimer": "<one sentence: this is AI-generated educational content, not professional financial advice>",
+  "referenced_weights": [
+    {{"ticker": "<TICKER>", "weight_pct": <number>}}
+  ]
+}}
 
-Keep language clear and jargon-free. End with a one-sentence disclaimer that this is AI-generated educational content, not professional financial advice."""
+For referenced_weights: list ONLY tickers from the portfolio above whose allocation_pct you
+explicitly reference in assessment or suggestions. Copy the exact allocation_pct values from
+the data — do NOT invent or round differently. If you reference no specific weights, return []."""
 
     response = _get_client().chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=500,
+        max_tokens=600,
         temperature=0.6,
     )
-    return response.choices[0].message.content
+    raw = response.choices[0].message.content.strip()
+
+    # ── parse JSON, fallback to raw text on failure ───────────────────────────
+    candidate = _extract_json_block(raw)
+    try:
+        parsed = json.loads(candidate)
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.warning(
+            "generate_advice: LLM returned non-JSON (%s); falling back to raw text. "
+            "Raw (first 300 chars): %r", exc, raw[:300]
+        )
+        return {"is_structured": False, "raw_text": raw}
+
+    result: dict = {
+        "is_structured": True,
+        "assessment": str(parsed.get("assessment", "")),
+        "suggestions": [str(s) for s in parsed.get("suggestions", [])],
+        "outlook": str(parsed.get("outlook", "")),
+        "disclaimer": str(parsed.get("disclaimer", "")),
+    }
+
+    # ── hallucination check: declared weights vs actual portfolio weights ─────
+    # Covers ONLY the tickers in referenced_weights — see docstring for scope.
+    ref_weights = parsed.get("referenced_weights")
+    if not ref_weights:
+        # LLM did not declare any specific weights — skip check silently
+        result["weights_verified"] = None
+        result["weights_note"] = None
+    else:
+        mismatches: list[str] = []
+        for item in ref_weights:
+            ticker = item.get("ticker", "")
+            declared = item.get("weight_pct")
+            actual_entry = portfolio_data.get(ticker)
+            if actual_entry is None or declared is None:
+                mismatches.append(ticker or "?")
+                continue
+            try:
+                if abs(float(declared) - float(actual_entry["allocation_pct"])) > 5.0:
+                    mismatches.append(ticker)
+            except (TypeError, ValueError):
+                mismatches.append(ticker)
+
+        if mismatches:
+            result["weights_verified"] = False
+            result["weights_note"] = "[Note: AI figures may differ from your actual data]"
+        else:
+            result["weights_verified"] = True
+            result["weights_note"] = None
+
+    return result
 
 
 # ---------------------------------------------------------------------------
