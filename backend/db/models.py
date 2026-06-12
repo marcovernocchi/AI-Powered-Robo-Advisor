@@ -16,6 +16,7 @@ class User(Base):
     risk_bands = Column(JSON, nullable=True)  # e.g. {"A": 3, "B": 2, "C": 3}
     risk_prudence_applied = Column(Boolean, nullable=True, default=False)
     risk_knowledge_level = Column(String, nullable=True)
+    risk_explanation = Column(Text, nullable=True)
     country = Column(String, nullable=False, default='US', server_default='US')
     display_currency = Column(String, nullable=False, default='USD', server_default='USD')
     created_at = Column(DateTime, default=datetime.utcnow)

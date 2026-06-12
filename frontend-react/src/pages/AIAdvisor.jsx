@@ -546,8 +546,8 @@ function AIAdvisorInner() {
   // riskDetails is populated either after questionnaire submission in this
   // session, or from the persisted sub-scores on /me (see effect below).
   const [riskDetails, setRiskDetails] = useState(null)
-  // LLM explanation (separate call after questionnaire submit)
-  const [riskExplanation, setRiskExplanation] = useState('')
+  // LLM explanation — loaded from DB on mount, refreshed after questionnaire submit
+  const [riskExplanation, setRiskExplanation] = useState(user?.risk_explanation ?? '')
   const [explanationLoading, setExplanationLoading] = useState(false)
 
   // Portfolio data for Radar 2

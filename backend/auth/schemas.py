@@ -33,6 +33,7 @@ class UserOut(BaseModel):
     risk_bands: Optional[dict] = None
     risk_prudence_applied: Optional[bool] = None
     risk_knowledge_level: Optional[str] = None
+    risk_explanation: Optional[str] = None
     country: str = 'US'
     display_currency: str = 'USD'
 
