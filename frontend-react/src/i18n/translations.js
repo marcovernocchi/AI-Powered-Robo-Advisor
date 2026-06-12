@@ -300,7 +300,7 @@ const en = {
     riskMedDesc: 'You target growth with controlled risk. A diversified equity-heavy portfolio with some defensive assets is recommended.',
     riskHighDesc: 'You pursue maximum long-term growth. Your portfolio can carry high equity exposure and accept significant short-term volatility.',
     suggestedPortfolioTitle: 'Suggested Starter Portfolio',
-    suggestedPortfolioDesc: 'A model portfolio matched to your risk profile — a starting point before you add your own holdings.',
+    suggestedPortfolioDesc: 'A model portfolio matched to your risk profile — a starting point before you add your own holdings. This is an educational project and is not intended to be financial advice.',
     suggestedPortfolioLoading: 'Loading suggested portfolio…',
     suggestedPortfolioError: 'Could not load suggested portfolio',
     sectionA: [
@@ -582,7 +582,7 @@ const it = {
     riskMedDesc: 'Punti alla crescita con rischio controllato. Un portafoglio diversificato a prevalenza azionaria con qualche asset difensivo è raccomandato.',
     riskHighDesc: 'Cerchi la massima crescita nel lungo periodo. Il portafoglio può avere alta esposizione azionaria e accettare volatilità significativa a breve termine.',
     suggestedPortfolioTitle: 'Portafoglio Suggerito di Partenza',
-    suggestedPortfolioDesc: 'Un portafoglio modello adatto al tuo profilo di rischio — un punto di partenza prima di aggiungere i tuoi titoli.',
+    suggestedPortfolioDesc: 'Un portafoglio modello adatto al tuo profilo di rischio — un punto di partenza prima di aggiungere i tuoi titoli. Questo è un progetto a scopo educativo e non vuole essere un consiglio finanziario.',
     suggestedPortfolioLoading: 'Caricamento del portafoglio suggerito…',
     suggestedPortfolioError: 'Impossibile caricare il portafoglio suggerito',
     sectionA: [
