@@ -544,71 +544,192 @@ def export_excel(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Download aggregated portfolio as .xlsx.
-
-    Columns: Ticker, Name, Type, Shares, Avg Buy Price, Currency,
-             Current Price, Value, P&L (abs), P&L (%), Weight (%),
-             Optimized Weight (%) [blank if never optimized].
-    Last row: totals for Value and P&L.
-    """
+    """Download aggregated portfolio as .xlsx with two sheets: Holdings + Summary."""
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
     rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db)
     if not rows:
         raise HTTPException(status_code=400, detail="No holdings to export")
 
+    hist_metrics = _compute_historical_metrics(rows, years=3)
+
+    display_currency = current_user.display_currency or "USD"
+    num_fmt  = f'"{display_currency}" #,##0.00'
+    pct_fmt  = '0.00%'       # store as decimal (e.g. 0.0538), displays "5.38%"
+    thin     = Side(style="thin", color="CCCCCC")
+    border   = Border(left=thin, right=thin, top=thin, bottom=thin)
+
     wb = openpyxl.Workbook()
+
+    # ── Sheet 1: Holdings ────────────────────────────────────────────────────
     ws = wb.active
-    ws.title = "Portfolio"
+    ws.title = "Holdings"
 
     headers = [
         "Ticker", "Name", "Type", "Shares",
-        "Avg Buy Price", "Currency", "Current Price",
-        "Value", "P&L", "P&L %", "Weight %", "Optimized Weight %",
+        f"Avg Buy ({display_currency})", "Currency", f"Curr Price ({display_currency})",
+        f"Value ({display_currency})", f"P&L ({display_currency})", "P&L %",
+        "Weight %", "Optimized Weight %",
     ]
     header_fill = PatternFill("solid", fgColor="1E3A5F")
     header_font = Font(bold=True, color="FFFFFF")
     ws.append(headers)
     for cell in ws[1]:
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center")
+        cell.fill   = header_fill
+        cell.font   = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 28
+    ws.freeze_panes = "A2"   # frozen header
 
-    display_currency = current_user.display_currency or "USD"
-    num_fmt = f'"{display_currency}" #,##0.00'
+    odd_fill  = PatternFill("solid", fgColor="F0F5FC")
+    even_fill = PatternFill("solid", fgColor="FFFFFF")
 
-    for r in rows:
-        opt_w = r["opt_weight_pct"] if r["opt_weight_pct"] is not None else ""
+    for i, r in enumerate(rows):
+        opt_w_raw = r["opt_weight_pct"] / 100 if r["opt_weight_pct"] is not None else None
         ws.append([
-            r["ticker"], r["asset_name"], r["asset_type"], r["shares"],
-            r["avg_buy_price"], r["currency"], r["current_price"],
-            r["value"], r["pnl_abs"], r["pnl_pct"], r["weight_pct"], opt_w,
+            r["ticker"],
+            r["asset_name"],
+            r["asset_type"],
+            r["shares"],
+            r["avg_buy_price"],
+            r["currency"],
+            r["current_price"],
+            r["value"],
+            r["pnl_abs"],
+            r["pnl_pct"] / 100 if r["pnl_pct"] is not None else None,    # decimal for %
+            r["weight_pct"] / 100 if r["weight_pct"] is not None else None,
+            opt_w_raw,
         ])
-        row_idx = ws.max_row
-        for col in (5, 7, 8, 9):   # avg buy, current, value, pnl_abs
+        row_idx  = ws.max_row
+        row_fill = odd_fill if i % 2 == 0 else even_fill
+        for col in range(1, 13):
+            c = ws.cell(row=row_idx, column=col)
+            c.fill   = row_fill
+            c.border = border
+            c.alignment = Alignment(
+                horizontal="right" if col >= 4 else "left",
+                vertical="center",
+            )
+        for col in (5, 7, 8, 9):
             ws.cell(row=row_idx, column=col).number_format = num_fmt
-        ws.cell(row=row_idx, column=10).number_format = '0.00"%"'
-        ws.cell(row=row_idx, column=11).number_format = '0.00"%"'
-        if opt_w != "":
-            ws.cell(row=row_idx, column=12).number_format = '0.00"%"'
+        for col in (10, 11):
+            ws.cell(row=row_idx, column=col).number_format = pct_fmt
+        if opt_w_raw is not None:
+            ws.cell(row=row_idx, column=12).number_format = pct_fmt
+        # P&L % conditional colour
+        pnl_cell = ws.cell(row=row_idx, column=10)
+        if r["pnl_pct"] is not None:
+            pnl_cell.font = Font(color="008C46" if r["pnl_pct"] >= 0 else "BE0000", bold=True)
 
     # Totals row
     total_row = ws.max_row + 1
+    total_fill = PatternFill("solid", fgColor="D9E1F2")
     ws.cell(total_row, 1, "TOTAL").font = Font(bold=True)
+    for col in range(1, 13):
+        ws.cell(total_row, col).fill   = total_fill
+        ws.cell(total_row, col).border = border
     ws.cell(total_row, 8, total_value).number_format = num_fmt
     ws.cell(total_row, 8).font = Font(bold=True)
     ws.cell(total_row, 9, total_pnl).number_format = num_fmt
     ws.cell(total_row, 9).font = Font(bold=True)
-    total_fill = PatternFill("solid", fgColor="D9E1F2")
-    for col in range(1, 13):
-        ws.cell(total_row, col).fill = total_fill
+    pnl_sign_font = Font(bold=True, color="008C46" if total_pnl >= 0 else "BE0000")
+    ws.cell(total_row, 9).font = pnl_sign_font
 
-    # Auto column widths
+    # Column widths — header text + data, minimum 10
+    MIN_WIDTHS = [14, 30, 12, 10, 18, 10, 18, 16, 16, 10, 10, 18]
     for col_cells in ws.columns:
-        max_len = max((len(str(c.value)) if c.value is not None else 0) for c in col_cells)
-        ws.column_dimensions[get_column_letter(col_cells[0].column)].width = min(max_len + 4, 30)
+        col_idx = col_cells[0].column
+        data_max = max((len(str(c.value)) if c.value is not None else 0) for c in col_cells)
+        min_w    = MIN_WIDTHS[col_idx - 1] if col_idx <= len(MIN_WIDTHS) else 12
+        ws.column_dimensions[get_column_letter(col_idx)].width = max(data_max + 3, min_w)
+
+    # ── Sheet 2: Summary ─────────────────────────────────────────────────────
+    ws2 = wb.create_sheet("Summary")
+    title_font   = Font(bold=True, size=13, color="1E3A5F")
+    section_font = Font(bold=True, size=11, color="1E3A5F")
+    label_font   = Font(size=10)
+    value_font   = Font(bold=True, size=10)
+    grey_fill    = PatternFill("solid", fgColor="F5F7FA")
+
+    def _s2_title(text: str):
+        ws2.append([text])
+        ws2.cell(ws2.max_row, 1).font = title_font
+        ws2.append([])
+
+    def _s2_section(text: str):
+        ws2.append([])
+        ws2.append([text])
+        ws2.cell(ws2.max_row, 1).font = section_font
+
+    def _s2_kv(label: str, value):
+        ws2.append([label, value])
+        r = ws2.max_row
+        ws2.cell(r, 1).font  = label_font
+        ws2.cell(r, 2).font  = value_font
+        ws2.cell(r, 1).fill  = grey_fill
+        ws2.cell(r, 2).fill  = grey_fill
+
+    def _s2_kv_pct(label: str, value_pct):
+        ws2.append([label, value_pct / 100 if value_pct is not None else "N/A"])
+        r = ws2.max_row
+        ws2.cell(r, 1).font  = label_font
+        ws2.cell(r, 2).font  = value_font
+        ws2.cell(r, 1).fill  = grey_fill
+        ws2.cell(r, 2).fill  = grey_fill
+        if value_pct is not None:
+            ws2.cell(r, 2).number_format = pct_fmt
+
+    _s2_title("Portfolio Summary")
+    _s2_section("Overview")
+    _s2_kv(f"Total Value ({display_currency})", total_value)
+    ws2.cell(ws2.max_row, 2).number_format = num_fmt
+    _s2_kv(f"Total P&L ({display_currency})",   total_pnl)
+    ws2.cell(ws2.max_row, 2).number_format = num_fmt
+    ws2.cell(ws2.max_row, 2).font = Font(
+        bold=True, size=10, color="008C46" if total_pnl >= 0 else "BE0000"
+    )
+    _s2_kv("Positions", len(rows))
+    if rows:
+        top = max(rows, key=lambda r: r["weight_pct"] or 0)
+        _s2_kv("Largest Position", f"{top['ticker']} ({top['weight_pct']:.2f}%)")
+
+    _s2_section("Composition by Type")
+    type_totals: dict = {}
+    for r in rows:
+        t = r["asset_type"] or "other"
+        type_totals[t] = type_totals.get(t, 0) + (r["value"] or 0)
+    for t, v in sorted(type_totals.items(), key=lambda x: -x[1]):
+        _s2_kv_pct(t.capitalize(), v / total_value * 100 if total_value else 0)
+
+    _s2_section("Forward-Looking Metrics (from last optimization)")
+    if opt_result:
+        _s2_kv_pct("Expected Annual Return", opt_result.expected_annual_return_pct)
+        _s2_kv_pct("Expected Volatility",    opt_result.annual_volatility_pct)
+        if opt_result.sharpe_ratio is not None:
+            _s2_kv("Expected Sharpe Ratio",  round(opt_result.sharpe_ratio, 2))
+        opt_date = opt_result.created_at.strftime("%d %b %Y") if opt_result.created_at else "unknown"
+        _s2_kv("Optimization date", opt_date)
+    else:
+        _s2_kv("Status", "Not available — run Optimize first")
+
+    _s2_section("Historical Performance (3-year buy-and-hold backtest)")
+    if hist_metrics:
+        _s2_kv_pct("Total Return",       hist_metrics.total_return_pct)
+        _s2_kv_pct("CAGR",               hist_metrics.cagr_pct)
+        _s2_kv_pct("Ann. Volatility",    hist_metrics.annualized_volatility_pct)
+        if hist_metrics.sharpe_ratio is not None:
+            _s2_kv("Sharpe Ratio",       round(hist_metrics.sharpe_ratio, 2))
+        if hist_metrics.sortino_ratio is not None:
+            _s2_kv("Sortino Ratio",      round(hist_metrics.sortino_ratio, 2))
+        _s2_kv_pct("Max Drawdown",       hist_metrics.max_drawdown_pct)
+    else:
+        _s2_kv("Status", "N/A — insufficient price history")
+
+    ws2.column_dimensions["A"].width = 36
+    ws2.column_dimensions["B"].width = 22
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -693,6 +814,48 @@ def _compute_historical_metrics(rows: list[dict], years: int = 3):
         return None
 
 
+def _make_allocation_chart(type_totals: dict, total_value: float) -> "io.BytesIO | None":
+    """Render a donut pie chart of allocation by asset type; return PNG BytesIO or None."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        labels = []
+        sizes  = []
+        for t, v in sorted(type_totals.items(), key=lambda x: -x[1]):
+            pct = v / total_value * 100 if total_value else 0
+            labels.append(f"{t.capitalize()}\n{pct:.1f}%")
+            sizes.append(v)
+
+        # Palette matching app colours: bond=teal, equity=blue, others=neutral
+        PALETTE = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444", "#6B7280", "#14B8A6", "#F97316"]
+        colors = PALETTE[:len(sizes)]
+
+        fig, ax = plt.subplots(figsize=(4.2, 3.6))
+        wedges, _ = ax.pie(
+            sizes, labels=None, colors=colors,
+            startangle=90, counterclock=False,
+            wedgeprops={"width": 0.55, "edgecolor": "white", "linewidth": 1.5},
+        )
+        ax.legend(
+            wedges, labels,
+            loc="center left", bbox_to_anchor=(0.95, 0.5),
+            fontsize=8, frameon=False,
+        )
+        ax.set_title("Allocation by Type", fontsize=10, fontweight="bold", pad=8, color="#1E3A5F")
+        fig.tight_layout()
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", transparent=False,
+                    facecolor="white")
+        plt.close(fig)
+        buf.seek(0)
+        return buf
+    except Exception:
+        return None
+
+
 def _generate_pdf(current_user: User, db):
     from fpdf import FPDF
 
@@ -706,6 +869,13 @@ def _generate_pdf(current_user: User, db):
 
     # Compute historical backtest metrics (best-effort; None if data unavailable)
     hist_metrics = _compute_historical_metrics(rows, years=3)
+
+    # Compute type totals for chart (shared between page 1 note and page 2 chart)
+    type_totals: dict = {}
+    for r in rows:
+        t = r["asset_type"] or "other"
+        type_totals[t] = type_totals.get(t, 0) + (r["value"] or 0)
+    chart_buf = _make_allocation_chart(type_totals, total_value)
 
     pdf = FPDF(orientation="L", unit="mm", format="A4")   # landscape: 297 x 210 mm
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -722,26 +892,28 @@ def _generate_pdf(current_user: User, db):
     pdf.set_fill_color(245, 247, 250)
     pdf.set_text_color(80, 80, 80)
     pdf.set_font("Helvetica", "", 9)
-    pdf.cell(PAGE_W, 7, f"  Investor: {username}   |   Generated: {today}   |   Currency: {display_currency}",
+    pdf.cell(PAGE_W, 7,
+             f"  Investor: {username}   |   Generated: {today}   |   "
+             f"Currency: {display_currency}   |   Prices as of {today}",
              ln=True, align="L", fill=True)
     pdf.ln(5)
 
-    # ── Holdings table ────────────────────────────────────────────────────────
-    # Column widths sum to 263 (fits within 267mm usable)
-    col_widths  = [30,  58,  18,  18,  26,  26,  28,  18,  21]
-    col_aligns  = ["L", "L", "C", "R", "R", "R", "R", "C", "R"]
+    # ── Holdings table (page 1) ───────────────────────────────────────────────
+    # 10 columns; widths sum to 261mm (fits in 267mm)
+    col_widths  = [28,  50,  16,  16,  24,  24,  26,  24,  18,  20]
+    col_aligns  = ["L", "L", "C", "R", "R", "R", "R", "R", "C", "R"]
     headers_pdf = [
         "Ticker", "Name", "Type", "Shares",
         f"Avg Buy ({display_currency})",
         f"Curr Price ({display_currency})",
         f"Value ({display_currency})",
+        f"P&L ({display_currency})",
         "P&L %", "Weight %",
     ]
 
     HEADER_BG   = (30, 58, 95)
     ROW_ODD_BG  = (240, 245, 252)
     ROW_EVEN_BG = (255, 255, 255)
-    BORDER_COL  = (200, 210, 225)
 
     def _draw_row(cells, widths, aligns, row_h, bg, text_colors=None):
         pdf.set_fill_color(*bg)
@@ -763,39 +935,55 @@ def _generate_pdf(current_user: User, db):
     pdf.set_font("Helvetica", "", 8)
     for i, r in enumerate(rows):
         bg = ROW_ODD_BG if i % 2 == 0 else ROW_EVEN_BG
-        pnl_val = r["pnl_pct"] or 0
-        pnl_color = (0, 140, 70) if pnl_val >= 0 else (190, 0, 0)
-        name_truncated = _safe(r["asset_name"] or "", maxlen=28)
+        pnl_pct_val = r["pnl_pct"] or 0
+        pnl_abs_val = r["pnl_abs"] or 0
+        pnl_color = (0, 140, 70) if pnl_pct_val >= 0 else (190, 0, 0)
         cells = [
             _safe(r["ticker"]),
-            name_truncated,
+            _safe(r["asset_name"] or "", maxlen=26),
             _safe(r["asset_type"] or ""),
             f"{r['shares']:,.2f}",
-            f"{r['avg_buy_price']:,.2f}"  if r["avg_buy_price"]  is not None else "N/A",
-            f"{r['current_price']:,.2f}"  if r["current_price"]  is not None else "N/A",
-            f"{r['value']:,.2f}"          if r["value"]          is not None else "N/A",
-            f"{pnl_val:+.2f}%",
-            f"{r['weight_pct']:.2f}%"     if r["weight_pct"]     is not None else "N/A",
+            f"{r['avg_buy_price']:,.2f}"  if r["avg_buy_price"] is not None else "N/A",
+            f"{r['current_price']:,.2f}"  if r["current_price"] is not None else "N/A",
+            f"{r['value']:,.2f}"          if r["value"]         is not None else "N/A",
+            f"{pnl_abs_val:+,.2f}",
+            f"{pnl_pct_val:+.2f}%",
+            f"{r['weight_pct']:.2f}%"     if r["weight_pct"]    is not None else "N/A",
         ]
         text_colors = [(0, 0, 0)] * len(cells)
-        text_colors[7] = pnl_color  # P&L column coloured
+        text_colors[7] = pnl_color   # P&L abs coloured
+        text_colors[8] = pnl_color   # P&L %   coloured
         _draw_row(cells, col_widths, col_aligns, 6, bg, text_colors)
 
-    # ── Summary block ─────────────────────────────────────────────────────────
-    pdf.ln(7)
+    # ── Page 2: Summary (left) + Chart (right) ───────────────────────────────
+    pdf.add_page()
 
-    # Helper: two-column key/value line
+    LEFT_W  = 130   # left column width for text
+    CHART_X = 155   # x start for chart (right half)
+    CHART_W = 107   # chart width in mm
+
+    # Helper: key/value in left column
     def _kv(label: str, value: str, bold_val: bool = False):
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(75, 6, label, ln=False)
+        pdf.set_x(15)
+        pdf.cell(65, 6, label, ln=False)
         pdf.set_font("Helvetica", "B" if bold_val else "", 10)
-        pdf.cell(0, 6, value, ln=True)
+        pdf.cell(LEFT_W - 65, 6, value, ln=True)
 
     def _section_title(title: str):
+        pdf.set_x(15)
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(30, 58, 95)
-        pdf.cell(0, 7, title, ln=True)
+        pdf.cell(LEFT_W, 7, title, ln=True)
         pdf.set_text_color(0, 0, 0)
+
+    # Embed chart in right half (fix Y at top of page 2)
+    PAGE2_TOP_Y = pdf.get_y()
+    if chart_buf is not None:
+        try:
+            pdf.image(chart_buf, x=CHART_X, y=PAGE2_TOP_Y, w=CHART_W)
+        except Exception:
+            pass  # chart failure must not abort PDF generation
 
     # ── Portfolio overview ────────────────────────────────────────────────────
     _section_title("Portfolio Overview")
@@ -803,23 +991,15 @@ def _generate_pdf(current_user: User, db):
     _kv("Total Value:",  f"{display_currency} {total_value:,.2f}", bold_val=True)
     _kv("Total P&L:",    f"{display_currency} {pnl_sign}{total_pnl:,.2f}")
     _kv("Positions:",    str(len(rows)))
-
-    # Top holding by weight
     if rows:
         top = max(rows, key=lambda r: r["weight_pct"] or 0)
         _kv("Largest position:", f"{_safe(top['ticker'])}  ({top['weight_pct']:.2f}%)")
-
-    # Composition by type
-    type_totals: dict = {}
-    for r in rows:
-        t = r["asset_type"] or "other"
-        type_totals[t] = type_totals.get(t, 0) + (r["value"] or 0)
     if type_totals and total_value > 0:
-        composition = "  |  ".join(
+        comp = "  |  ".join(
             f"{k}: {v / total_value * 100:.1f}%"
             for k, v in sorted(type_totals.items(), key=lambda x: -x[1])
         )
-        _kv("Composition:", _safe(composition))
+        _kv("Composition:", _safe(comp))
 
     # ── Forward-looking metrics (optimizer) ──────────────────────────────────
     pdf.ln(3)
@@ -832,14 +1012,16 @@ def _generate_pdf(current_user: User, db):
         if opt_result.sharpe_ratio is not None:
             _kv("Expected Sharpe Ratio:",  f"{opt_result.sharpe_ratio:.2f}")
         opt_date = opt_result.created_at.strftime("%d %b %Y") if opt_result.created_at else "unknown"
+        pdf.set_x(15)
         pdf.set_font("Helvetica", "I", 8)
         pdf.set_text_color(120, 120, 120)
-        pdf.cell(0, 5, f"Optimization run on: {opt_date}", ln=True)
+        pdf.cell(LEFT_W, 5, f"Optimization run on: {opt_date}", ln=True)
         pdf.set_text_color(0, 0, 0)
     else:
+        pdf.set_x(15)
         pdf.set_font("Helvetica", "I", 9)
         pdf.set_text_color(120, 120, 120)
-        pdf.cell(0, 6, "Not available — run Optimize in the Portfolio page first.", ln=True)
+        pdf.cell(LEFT_W, 6, "Not available — run Optimize first.", ln=True)
         pdf.set_text_color(0, 0, 0)
 
     # ── Historical metrics (3-year buy-and-hold backtest) ────────────────────
@@ -856,14 +1038,16 @@ def _generate_pdf(current_user: User, db):
         _kv("Max Drawdown:",         f"{hist_metrics.max_drawdown_pct:.2f}%")
         if hist_metrics.var_95_pct is not None:
             _kv("VaR 95% (daily):",  f"{hist_metrics.var_95_pct:.2f}%")
+        pdf.set_x(15)
         pdf.set_font("Helvetica", "I", 8)
         pdf.set_text_color(120, 120, 120)
-        pdf.cell(0, 5, "Based on actual price history (risk-free rate 2%). Does not account for cash flows or fees.", ln=True)
+        pdf.cell(LEFT_W, 5, "Based on actual price history (risk-free rate 2%). Fees not included.", ln=True)
         pdf.set_text_color(0, 0, 0)
     else:
+        pdf.set_x(15)
         pdf.set_font("Helvetica", "I", 9)
         pdf.set_text_color(120, 120, 120)
-        pdf.cell(0, 6, "N/A — insufficient price history (need at least 20 trading days over 3 years).", ln=True)
+        pdf.cell(LEFT_W, 6, "N/A — insufficient price history (need >= 20 trading days).", ln=True)
         pdf.set_text_color(0, 0, 0)
 
     # ── Disclaimer ────────────────────────────────────────────────────────────
