@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Button,
   Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell,
@@ -149,11 +150,28 @@ export default function Portfolio() {
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0
   const allocationData = chartView === 'type' ? chartDataByType : chartDataByTicker
 
+  const navigate = useNavigate()
   const boxClass = "bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm"
   const periodChangePct = chartData.length >= 2
     ? ((chartData.at(-1).Value - chartData[0].Value) / chartData[0].Value * 100)
     : null
   const isUp = periodChangePct === null || periodChangePct >= 0
+
+  if (!loading && portfolioList.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+        <div className="text-5xl">📂</div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('portfolio.noPortfolioTitle')}</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">{t('portfolio.noPortfolioDesc')}</p>
+        <button
+          onClick={() => navigate('/')}
+          className="px-5 py-2.5 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-semibold hover:opacity-90 transition-opacity"
+        >
+          {t('portfolio.goToDashboard')}
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
