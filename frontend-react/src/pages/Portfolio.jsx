@@ -283,16 +283,16 @@ export default function Portfolio() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-3">
+                    <div className="flex gap-2 justify-center">
                       <button
                         onClick={() => setEditingHolding(h)}
-                        className="text-xs text-blue-400 hover:text-blue-600"
+                        className="px-3 py-1.5 text-sm font-medium rounded-lg border border-blue-200 dark:border-blue-800 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
                       >
                         {t('portfolio.edit')}
                       </button>
                       <button
                         onClick={() => handleDelete(h.id)}
-                        className="text-xs text-red-400 hover:text-red-600"
+                        className="px-3 py-1.5 text-sm font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
                       >
                         {t('portfolio.remove')}
                       </button>
