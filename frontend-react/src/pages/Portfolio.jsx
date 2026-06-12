@@ -5,6 +5,7 @@ import {
   Flex, DonutChart, Legend,
 } from '@tremor/react'
 import { getPortfolio, getPortfolioList, deleteHolding, optimizePortfolio, downloadPortfolioExport } from '../api/client'
+import { aggregateHoldings } from '../utils/holdingsUtils'
 import AddTransactionModal from '../components/AddTransactionModal'
 import EditHoldingModal from '../components/EditHoldingModal'
 import ImportModal from '../components/ImportModal'
@@ -65,6 +66,14 @@ export default function Portfolio() {
     } catch (e) { console.error(e) }
   }
 
+  async function handleDeleteMultiple(ids) {
+    if (!window.confirm(`Remove all ${ids.length} positions for this ticker?`)) return
+    try {
+      await Promise.all(ids.map((id) => deleteHolding(id)))
+      await fetchAll()
+    } catch (e) { console.error(e) }
+  }
+
   async function handleOptimize() {
     setOptError('')
     setOptLoading(true)
@@ -82,9 +91,10 @@ export default function Portfolio() {
   if (loading) return <p className="text-gray-400 text-sm">Loading...</p>
 
   const rawHoldings = portfolio?.holdings ?? []
+  const aggregated  = aggregateHoldings(rawHoldings)
   const holdings = sortKey
-    ? [...rawHoldings].sort((a, b) => sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey])
-    : rawHoldings
+    ? [...aggregated].sort((a, b) => sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey])
+    : aggregated
   const total    = portfolio?.total_value ?? 0
   const displayCurrency = portfolio?.display_currency ?? 'USD'
 
@@ -113,7 +123,7 @@ export default function Portfolio() {
   ]
 
   const chartDataByType = Object.entries(
-    holdings.reduce((acc, h) => {
+    rawHoldings.reduce((acc, h) => {
       const label = ASSET_TYPE_LABEL[h.asset_type] ?? h.asset_type
       acc[label] = (acc[label] ?? 0) + h.value
       return acc
@@ -122,7 +132,7 @@ export default function Portfolio() {
    .sort((a, b) => b.value - a.value)
 
   // Aggregate duplicate tickers then sort by value descending — no hard cap
-  const tickerMap = holdings.reduce((acc, h) => {
+  const tickerMap = rawHoldings.reduce((acc, h) => {
     acc[h.ticker] = (acc[h.ticker] ?? 0) + h.value
     return acc
   }, {})
@@ -258,7 +268,7 @@ export default function Portfolio() {
             </TableHead>
             <TableBody>
               {holdings.map((h) => (
-                <TableRow key={h.id}>
+                <TableRow key={h.ticker}>
                   <TableCell>
                     <div>
                       <p className="font-semibold">{h.ticker}</p>
@@ -284,14 +294,23 @@ export default function Portfolio() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2 justify-center">
+                      {h.ids.length === 1 ? (
+                        <button
+                          onClick={() => setEditingHolding(h)}
+                          className="px-3 py-1.5 text-sm font-medium rounded-lg border border-blue-200 dark:border-blue-800 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                        >
+                          {t('portfolio.edit')}
+                        </button>
+                      ) : (
+                        <span
+                          title={`${h.ids.length} merged positions — split to edit individually`}
+                          className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-100 dark:border-gray-800 text-gray-300 dark:text-gray-600 cursor-default"
+                        >
+                          {t('portfolio.edit')}
+                        </span>
+                      )}
                       <button
-                        onClick={() => setEditingHolding(h)}
-                        className="px-3 py-1.5 text-sm font-medium rounded-lg border border-blue-200 dark:border-blue-800 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
-                      >
-                        {t('portfolio.edit')}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(h.id)}
+                        onClick={() => h.ids.length === 1 ? handleDelete(h.ids[0]) : handleDeleteMultiple(h.ids)}
                         className="px-3 py-1.5 text-sm font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
                       >
                         {t('portfolio.remove')}
