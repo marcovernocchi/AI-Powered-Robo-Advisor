@@ -417,15 +417,15 @@ export default function Backtesting() {
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className={labelClass}>{bt('txCost')}</label>
+                  <label className={`${labelClass} whitespace-pre-line`}>{bt('txCost')}</label>
                   <NumberInput value={txCost} onChange={setTxCost} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>{bt('ter')}</label>
+                  <label className={`${labelClass} whitespace-pre-line`}>{bt('ter')}</label>
                   <NumberInput value={ter} onChange={setTer} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>{bt('spread')}</label>
+                  <label className={`${labelClass} whitespace-pre-line`}>{bt('spread')}</label>
                   <NumberInput value={spread} onChange={setSpread} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
                 </div>
               </div>
