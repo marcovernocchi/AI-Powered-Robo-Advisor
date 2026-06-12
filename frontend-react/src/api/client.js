@@ -122,8 +122,8 @@ export const getStockInfo = (ticker) => request(`/market/info/${ticker}`)
 export const getStockPrice = (ticker) => request(`/market/price/${ticker}`)
 export const searchAssets = (q) => request(`/market/search?q=${encodeURIComponent(q)}`)
 
-export const generateAdvice = () =>
-  request('/advice/generate', { method: 'POST' })
+export const generateAdvice = (lang = 'en') =>
+  request('/advice/generate', { method: 'POST', body: JSON.stringify({ lang }), headers: { 'Content-Type': 'application/json' } })
 export const getAdviceHistory = () => request('/advice/history')
 
 export const setRiskProfile = (answers) =>

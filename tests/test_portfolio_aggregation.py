@@ -88,7 +88,7 @@ def test_advice_uses_holdings_from_non_first_portfolio(client):
 
     captured = {}
 
-    def fake_generate_advice(portfolio_summary, risk_score):
+    def fake_generate_advice(portfolio_summary, risk_score, lang=None):
         captured["summary"] = portfolio_summary
         captured["risk_score"] = risk_score
         return "MOCK ADVICE"

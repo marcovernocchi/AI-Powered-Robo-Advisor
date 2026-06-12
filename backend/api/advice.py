@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.db.models import User, Portfolio, Advice
@@ -11,8 +12,12 @@ from backend.services.llm_advisor import generate_advice
 router = APIRouter(prefix="/advice", tags=["advice"])
 
 
+class _AdviceRequest(BaseModel):
+    lang: str = 'en'
+
+
 @router.post("/generate")
-def get_advice(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_advice(body: _AdviceRequest = _AdviceRequest(), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Returns investment advice based on the user's portfolio and risk score, generating and storing the advice in the database."""
     if not current_user.risk_score:
         raise HTTPException(status_code=400, detail="Complete the risk questionnaire first")
@@ -39,7 +44,7 @@ def get_advice(current_user: User = Depends(get_current_user), db: Session = Dep
                 "allocation_pct": round(value / total * 100, 1) if total > 0 else 0,
             }
 
-    content = generate_advice(portfolio_summary, current_user.risk_score)
+    content = generate_advice(portfolio_summary, current_user.risk_score, lang=body.lang)
     content_str = json.dumps(content)   # serialise dict → TEXT for DB storage
 
     db.add(Advice(user_id=current_user.id, content=content_str))
