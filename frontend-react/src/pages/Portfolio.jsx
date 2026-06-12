@@ -447,22 +447,22 @@ export default function Portfolio() {
         {holdings.length > 0 ? (
           <Table>
             <TableHead>
-              <TableRow>
-                <TableHeaderCell className="w-1/2">Asset</TableHeaderCell>
-                <TableHeaderCell>{t('portfolio.purchaseValue')}</TableHeaderCell>
-                <TableHeaderCell>
-                  <button onClick={() => handleSort('value')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+              <TableRow className="text-xs text-gray-400">
+                <TableHeaderCell className="w-1/2 !text-xs !text-gray-400 !font-medium">{t('portfolio.asset')}</TableHeaderCell>
+                <TableHeaderCell className="!text-xs !text-gray-400 !font-medium !text-right">{t('portfolio.avgBuyPrice')}</TableHeaderCell>
+                <TableHeaderCell className="!text-xs !text-gray-400 !font-medium !text-right">
+                  <button onClick={() => handleSort('value')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
                     {t('portfolio.currentValue')}
-                    <span className="text-gray-300 dark:text-gray-600">{sortKey === 'value' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
+                    <span className="text-gray-300 dark:text-gray-600 ml-1">{sortKey === 'value' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
                   </button>
                 </TableHeaderCell>
-                <TableHeaderCell>
-                  <button onClick={() => handleSort('pnl_pct')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                    P&amp;L
-                    <span className="text-gray-300 dark:text-gray-600">{sortKey === 'pnl_pct' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
+                <TableHeaderCell className="!text-xs !text-gray-400 !font-medium !text-right">
+                  <button onClick={() => handleSort('pnl_pct')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
+                    {t('portfolio.pl')}
+                    <span className="text-gray-300 dark:text-gray-600 ml-1">{sortKey === 'pnl_pct' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
                   </button>
                 </TableHeaderCell>
-                <TableHeaderCell></TableHeaderCell>
+                <TableHeaderCell className="!text-xs !text-gray-400 !font-medium"></TableHeaderCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -482,13 +482,13 @@ export default function Portfolio() {
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-right">
                       <div>
                         <p className="tabular-nums text-gray-900 dark:text-gray-100">{showCapital ? fmtCurrency(buyTotal, h.currency) : MASKED_VALUE}</p>
                         <p className="text-xs text-gray-400 mt-0.5">{fmtCurrency(h.avg_buy_price, h.currency)} avg</p>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-right">
                       <div>
                         <p className="tabular-nums text-gray-900 dark:text-gray-100">
                           {showCapital ? fmtCurrency(h.value) : MASKED_VALUE}
@@ -497,7 +497,7 @@ export default function Portfolio() {
                         <p className="text-xs text-gray-400 mt-0.5">{fmtCurrency(h.current_price, h.currency)}</p>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-right">
                       <p className={`tabular-nums font-medium ${pnlAbs >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                         {showCapital ? <>{pnlAbs >= 0 ? '+' : ''}{fmtCurrency(pnlAbs)}</> : MASKED_VALUE}
                       </p>

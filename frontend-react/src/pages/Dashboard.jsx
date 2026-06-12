@@ -353,24 +353,24 @@ export default function Dashboard() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 uppercase tracking-wide">
-                  <th className="text-left pb-2 font-medium pr-4">Asset</th>
-                  <th className="text-right pb-2 font-medium pr-4">Qty</th>
-                  <th className="text-right pb-2 font-medium pr-4">Avg buy price</th>
-                  <th className="text-right pb-2 font-medium pr-4">Current price</th>
-                  <th className="text-right pb-2 font-medium pr-4">
+                <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400">
+                  <th className="text-left pb-2 font-medium pr-4 whitespace-nowrap">{t('portfolio.asset')}</th>
+                  <th className="text-right pb-2 font-medium pr-4 whitespace-nowrap">{t('portfolio.quantity')}</th>
+                  <th className="text-right pb-2 font-medium pr-4 whitespace-nowrap">{t('portfolio.avgBuyPrice')}</th>
+                  <th className="text-right pb-2 font-medium pr-4 whitespace-nowrap">{t('portfolio.currentPrice')}</th>
+                  <th className="text-right pb-2 font-medium pr-4 whitespace-nowrap">
                     <button onClick={() => handleSort('value')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
-                      Current value <SortIcon col="value" />
+                      {t('portfolio.currentValue')} <SortIcon col="value" />
                     </button>
                   </th>
-                  <th className="text-right pb-2 font-medium pr-4">
+                  <th className="text-right pb-2 font-medium pr-4 whitespace-nowrap">
                     <button onClick={() => handleSort('pnl_pct')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
-                      P&amp;L <SortIcon col="pnl_pct" />
+                      {t('portfolio.pl')} <SortIcon col="pnl_pct" />
                     </button>
                   </th>
-                  <th className="text-right pb-2 font-medium">
+                  <th className="text-right pb-2 font-medium whitespace-nowrap">
                     <button onClick={() => handleSort('purchase_date')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
-                      Buy date <SortIcon col="purchase_date" />
+                      {t('portfolio.buyDate')} <SortIcon col="purchase_date" />
                     </button>
                   </th>
                 </tr>
