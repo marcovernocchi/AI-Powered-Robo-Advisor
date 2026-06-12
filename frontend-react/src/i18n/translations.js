@@ -317,7 +317,7 @@ const en = {
       { key: 'a4', label: 'A4. What percentage of your total financial wealth does this investment represent?', options: ['More than 75%', '50% – 75%', '25% – 49%', 'Less than 25%'] },
       { key: 'a5', label: 'A5. Current level of debt', options: ['Significant (>50% of income)', 'Moderate (20% – 50%)', 'Limited (<20%)', 'None'] },
       { key: 'a6', label: 'A6. How often will you withdraw funds?', options: ['Frequently (monthly/quarterly)', 'Occasionally (1-2x/year)', 'Rarely (every few years)', 'Not until end of investment'] },
-      { key: 'a7', label: 'A7. If this investment lost 30% of its value, what would be the impact on your standard of living?', options: ['Severely', 'Moderately', 'Slightly', 'Not at all'] },
+      { key: 'a7', label: 'A7. If this investment lost 30% of its value, what would be the impact on your standard of living?', options: ['I would need to cut essential expenses', 'It would be uncomfortable but manageable', 'I could absorb the loss without major changes', 'It would have no impact on my daily life'] },
       { key: 'a8', label: 'A8. Emergency savings outside this investment?', options: ['None', 'Less than 3 months expenses', '3 – 6 months', 'More than 6 months'] },
     ],
     sectionB: [
@@ -606,7 +606,7 @@ const it = {
       { key: 'a4', label: 'A4. Che percentuale del tuo patrimonio finanziario totale rappresenta questo investimento?', options: ['Più del 75%', '50% – 75%', '25% – 49%', 'Meno del 25%'] },
       { key: 'a5', label: 'A5. Livello attuale di debito', options: ['Significativo (>50% del reddito)', 'Moderato (20% – 50%)', 'Limitato (<20%)', 'Nessuno'] },
       { key: 'a6', label: 'A6. Con quale frequenza preleverai fondi?', options: ['Frequentemente (mensile/trimestrale)', 'Occasionalmente (1-2 volte/anno)', 'Raramente (ogni pochi anni)', 'Non prima della fine dell\'investimento'] },
-      { key: 'a7', label: 'A7. Se questo investimento perdesse il 30% del suo valore, quale sarebbe l\'impatto sul tuo tenore di vita?', options: ['Gravemente', 'Moderatamente', 'Leggermente', 'Per niente'] },
+      { key: 'a7', label: 'A7. Se questo investimento perdesse il 30% del suo valore, quale sarebbe l\'impatto sul tuo tenore di vita?', options: ['Dovrei ridurre le spese essenziali', 'Sarebbe scomodo ma gestibile', 'Potrei assorbire la perdita senza grandi cambiamenti', 'Non avrebbe alcun impatto sulla mia vita quotidiana'] },
       { key: 'a8', label: 'A8. Risparmi di emergenza al di fuori di questo investimento?', options: ['Nessuno', 'Meno di 3 mesi di spese', '3 – 6 mesi', 'Più di 6 mesi'] },
     ],
     sectionB: [
