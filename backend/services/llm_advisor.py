@@ -158,6 +158,7 @@ def generate_risk_explanation(
     bands: dict,
     prudence_applied: bool,
     knowledge_level: str,
+    lang: str = 'en',
 ) -> str:
     """Generate a personalised plain-language explanation of the user's MiFID II risk profile.
 
@@ -178,8 +179,11 @@ def generate_risk_explanation(
             f"and Risk Attitude (band {bands['C']}) are within one band of each other."
         )
 
+    language_instruction = "Respond in Italian." if lang == 'it' else "Respond in English."
+
     prompt = f"""You are a financial educator explaining a MiFID II suitability assessment to a retail investor.
 Be plain, concrete, and honest. Do NOT invent any numbers, percentages, or return figures beyond what is given below.
+{language_instruction}
 
 Assessment results (do not alter these numbers):
 - Total risk score: {risk_score}/68  →  Profile: {profile}
@@ -193,7 +197,7 @@ Write exactly 2 paragraphs (4–5 sentences each):
 1. What this profile means in practical terms: what investment types fit, what level of price swings to expect, and a typical time horizon for this profile.
 2. What the investor should pay attention to given their specific sub-scores — highlight any notable mismatch or gap (e.g. if knowledge is low relative to risk attitude, or if financial situation limits room for risky assets).
 
-Plain English only. No bullet points. No invented numbers. End the second paragraph with one sentence reminding the reader this is educational content, not personalised financial advice."""
+No bullet points. No invented numbers. End the second paragraph with one sentence reminding the reader this is educational content, not personalised financial advice."""
 
     response = _get_client().chat.completions.create(
         model="llama-3.3-70b-versatile",

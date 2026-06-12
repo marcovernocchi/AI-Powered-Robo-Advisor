@@ -657,7 +657,7 @@ function AIAdvisorInner() {
         bands: result.bands,
         prudence_applied: result.prudence_applied,
         knowledge_level: result.knowledge_level,
-      })
+      }, lang)
         .then((r) => setRiskExplanation(r.explanation))
         .catch(() => setRiskExplanation(''))
         .finally(() => setExplanationLoading(false))

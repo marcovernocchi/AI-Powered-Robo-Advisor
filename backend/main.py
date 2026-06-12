@@ -74,6 +74,7 @@ class _RiskExplainRequest(_BaseModel):
     bands: dict
     prudence_applied: bool
     knowledge_level: str
+    lang: str = 'en'
 
 
 @app.post("/risk-profile/explain")
@@ -90,6 +91,7 @@ def explain_risk_profile(
         bands=data.bands,
         prudence_applied=data.prudence_applied,
         knowledge_level=data.knowledge_level,
+        lang=data.lang,
     )
     current_user.risk_explanation = explanation
     db.commit()
