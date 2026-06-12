@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
-  Card, Title, Text, Button, Badge, TextInput, AreaChart,
+  Card, Title, Text, Button, Badge, AreaChart,
   Grid,
 } from '@tremor/react'
-import { getMarketHistory, getStockInfo, getStockPrice } from '../api/client'
+import { getMarketHistory, getStockInfo, getStockPrice, searchAssets } from '../api/client'
 import { useLang } from '../context/LangContext'
 
 const PERIODS = ['1mo', '3mo', '6mo', '1y', '2y', '5y']
@@ -26,11 +26,42 @@ export default function Market() {
   const [period, setPeriod] = useState('1y')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const debounceRef = useRef(null)
+  const wrapperRef = useRef(null)
 
-  async function handleSearch(e) {
-    e.preventDefault()
-    const sym = input.trim().toUpperCase()
-    if (!sym) return
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  function handleInputChange(e) {
+    const val = e.target.value
+    setInput(val)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (val.trim().length < 1) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchAssets(val.trim())
+        setSuggestions(results)
+        setShowSuggestions(results.length > 0)
+      } catch {
+        setSuggestions([])
+      }
+    }, 300)
+  }
+
+  async function loadTicker(sym) {
     setError('')
     setLoading(true)
     setInfo(null)
@@ -58,6 +89,21 @@ export default function Market() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleSearch(e) {
+    e.preventDefault()
+    const sym = input.trim().toUpperCase()
+    if (!sym) return
+    setShowSuggestions(false)
+    await loadTicker(sym)
+  }
+
+  async function handleSelectSuggestion(s) {
+    setInput(s.ticker)
+    setSuggestions([])
+    setShowSuggestions(false)
+    await loadTicker(s.ticker)
   }
 
   async function handlePeriodChange(p) {
@@ -89,12 +135,31 @@ export default function Market() {
 
       {/* Search */}
       <form onSubmit={handleSearch} className="flex gap-3">
-        <TextInput
-          placeholder={t('market.placeholder')}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          className="flex-1"
-        />
+        <div ref={wrapperRef} className="relative flex-1">
+          <input
+            type="text"
+            placeholder={t('market.placeholder')}
+            value={input}
+            onChange={handleInputChange}
+            onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-100"
+          />
+          {showSuggestions && (
+            <ul className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden">
+              {suggestions.map((s) => (
+                <li
+                  key={s.ticker}
+                  onMouseDown={() => handleSelectSuggestion(s)}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                >
+                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 w-24 shrink-0">{s.ticker}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 truncate">{s.name}</span>
+                  <span className="ml-auto text-xs text-gray-400 shrink-0">{s.type}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <Button type="submit" loading={loading}>
           {t('market.search')}
         </Button>
