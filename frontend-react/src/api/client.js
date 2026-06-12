@@ -63,6 +63,7 @@ export const deleteHolding = (id) =>
   request(`/portfolio/holdings/${id}`, { method: 'DELETE' })
 export const optimizePortfolio = () => request('/portfolio/optimize')
 export const getPortfolioMetrics = () => request('/portfolio/metrics')
+export const getPortfolioSuggestions = () => request('/portfolio/suggestions')
 
 export async function downloadPortfolioExport(format) {
   const token = localStorage.getItem('token')
