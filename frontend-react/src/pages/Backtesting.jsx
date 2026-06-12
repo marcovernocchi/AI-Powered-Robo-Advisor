@@ -3,6 +3,7 @@ import { AreaChart, LineChart } from '@tremor/react'
 import { runBacktest, getPortfolio, getPortfolioById, getPortfolioList } from '../api/client'
 import { useLang } from '../context/LangContext'
 import NumberInput from '../components/NumberInput'
+import DropdownSelect from '../components/DropdownSelect'
 
 const REBALANCE_OPTIONS = [
   { value: 'none', labelKey: 'rebalanceNone' },
@@ -399,11 +400,12 @@ export default function Backtesting() {
 
               <div>
                 <label className={labelClass}>{bt('rebalance')}</label>
-                <select value={rebalance} onChange={(e) => setRebalance(e.target.value)} className={inputClass}>
-                  {REBALANCE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{bt(o.labelKey)}</option>
-                  ))}
-                </select>
+                <DropdownSelect
+                  value={rebalance}
+                  onChange={setRebalance}
+                  options={REBALANCE_OPTIONS.map((o) => ({ value: o.value, label: bt(o.labelKey) }))}
+                  className="w-full"
+                />
               </div>
 
               {rebalance === 'drift' && (
