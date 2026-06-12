@@ -15,16 +15,17 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 COLUMN_ALIASES = {
     'ticker':        ['ticker', 'symbol', 'strumento', 'titolo', 'codice_titolo', 'simbolo'],
     'isin':          ['isin', 'codice_isin'],
-    'asset_name':    ['name', 'nome', 'nome_etf', 'descrizione', 'description', 'denominazione'],
+    'asset_name':    ['name', 'nome', 'nome_etf', 'descrizione', 'description', 'denominazione', 'strumento', 'titolo', 'asset'],
     'asset_type':    ['tipo', 'type', 'asset_type', 'categoria', 'category'],
     'shares':        ['shares', 'quantity', 'quantita', 'quantità', 'qty', 'qtà', 'qta',
                       'numero_titoli', 'pezzi', 'num', 'numero'],
     'avg_buy_price': ['price', 'prezzo', 'costo', 'avg_price', 'avg_buy_price', 'prezzo_medio',
-                      'prezzo_medio_(€)', 'prezzo_medio_(eur)', 'prezzo_medio_eur',
+                      'prezzo_medio_€', 'prezzo_medio_(€)', 'prezzo_medio_(eur)', 'prezzo_medio_eur',
                       'prezzo_carico', 'prezzo_di_carico', 'prezzo_acquisto', 'purchase_price',
-                      'corso_acquisto'],
+                      'corso_acquisto', 'prezzo_medio_di_carico_€', 'prezzo_medio_di_carico_eur',
+                      'prezzo_medio_di_carico'],
     'purchase_date': ['date', 'data', 'purchase_date', 'data_acquisto', 'transaction_date',
-                      'data_transazione', 'data_operazione'],
+                      'data_transazione', 'data_operazione', 'data_di_carico', 'data_carico'],
     'fees':          ['fees', 'commissioni', 'fee', 'commissione', 'costi'],
 }
 
