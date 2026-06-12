@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { addHolding, searchAssets } from '../api/client'
 import { useLang } from '../context/LangContext'
+import NumberInput from './NumberInput'
 
 function today() {
   return new Date().toISOString().split('T')[0]
@@ -240,15 +241,15 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
           {/* Quantity */}
           <div>
             <label className={labelClass}>{t('modal.quantity')}</label>
-            <input
-              type="number"
+            <NumberInput
               placeholder="e.g. 10"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              min="0"
+              onChange={setQuantity}
+              min={0.000001}
+              max={1000000}
               step="any"
+              fallback={1}
               className={fieldClass}
-              required
             />
           </div>
 
@@ -267,28 +268,29 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
           {/* Purchase price */}
           <div>
             <label className={labelClass}>{t('modal.purchasePrice')}</label>
-            <input
-              type="number"
+            <NumberInput
               placeholder="e.g. 150.00"
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              min="0"
+              onChange={setPrice}
+              min={0.0001}
+              max={1000000}
               step="any"
+              fallback={0}
               className={fieldClass}
-              required
             />
           </div>
 
           {/* Fees (optional) */}
           <div>
             <label className={labelClass}>{t('modal.fees')} <span className="text-gray-300 dark:text-gray-600">{t('modal.optional')}</span></label>
-            <input
-              type="number"
+            <NumberInput
               placeholder="e.g. 4.95"
               value={fees}
-              onChange={(e) => setFees(e.target.value)}
-              min="0"
+              onChange={setFees}
+              min={0}
+              max={10000}
               step="any"
+              fallback={0}
               className={fieldClass}
             />
           </div>
