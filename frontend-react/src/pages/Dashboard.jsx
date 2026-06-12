@@ -10,13 +10,6 @@ import { aggregateHoldings } from '../utils/holdingsUtils'
 
 const MASKED_VALUE = '* * * * *'
 
-function riskLabel(score) {
-  if (score <= 26) return 'Low (Defensive)'
-  if (score <= 42) return 'Medium (Conservative)'
-  if (score <= 56) return 'Medium-High (Balanced)'
-  return 'High (Aggressive)'
-}
-
 function riskColor(score) {
   if (score <= 26) return 'emerald'
   if (score <= 42) return 'yellow'
@@ -27,6 +20,13 @@ function riskColor(score) {
 export default function Dashboard() {
   const { user } = useAuth()
   const { t } = useLang()
+
+  function riskLabel(score) {
+    if (score <= 26) return t('advisor.riskLow')
+    if (score <= 42) return t('advisor.riskMedLow')
+    if (score <= 56) return t('advisor.riskMed')
+    return t('advisor.riskHigh')
+  }
   const navigate = useNavigate()
   const {
     portfolio: portfolioData, portfolioList, chartData,
@@ -245,11 +245,15 @@ export default function Dashboard() {
                   style: 'currency', currency: displayCurrency,
                   maximumFractionDigits: 0,
                 }).format(v)
-                const CustomTooltip = ({ payload, active, label }) => {
+                const CustomTooltip = ({ payload, active }) => {
                   if (!active || !payload?.length) return null
+                  const raw = payload[0]?.payload?.rawDate
+                  const dateLabel = raw
+                    ? new Date(raw).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : payload[0]?.payload?.date
                   return (
                     <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg px-4 py-3">
-                      <p className="text-xs text-gray-400 mb-1">{label}</p>
+                      <p className="text-xs text-gray-400 mb-1">{dateLabel}</p>
                       <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{fmtFull(payload[0].value)}</p>
                     </div>
                   )
@@ -295,7 +299,12 @@ export default function Dashboard() {
                   </span>
                   <Badge color={riskColor(user.risk_score)} size="sm">{riskLabel(user.risk_score)}</Badge>
                 </div>
-                <ProgressBar value={(user.risk_score / 68) * 100} color={riskColor(user.risk_score)} />
+                <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className={`h-2 rounded-full ${{emerald:'bg-emerald-500',yellow:'bg-yellow-500',orange:'bg-orange-500',red:'bg-red-500'}[riskColor(user.risk_score)]}`}
+                    style={{ width: `${(user.risk_score / 68) * 100}%` }}
+                  />
+                </div>
               </div>
             ) : (
               <div className="space-y-2">
