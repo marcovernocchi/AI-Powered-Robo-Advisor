@@ -203,6 +203,48 @@ Plain English only. No bullet points. No invented numbers. End the second paragr
 
 
 # ---------------------------------------------------------------------------
+# Model portfolio suggestion explanation
+# ---------------------------------------------------------------------------
+
+def generate_portfolio_suggestion_explanation(
+    risk_score: int,
+    risk_band_label: str,
+    allocation: list[dict],
+) -> str:
+    """Generate a short explanation of why a model portfolio fits a risk profile.
+
+    `allocation` is a list of {"asset_class": str, "weight": float} describing
+    the proposed model portfolio. The model is instructed not to invent any
+    figures beyond the ones given.
+
+    Raises on LLM failure or non-JSON-free errors — callers should catch and
+    fall back to a static per-band explanation.
+    """
+    allocation_str = "\n".join(
+        f"  - {item['asset_class']}: {item['weight'] * 100:.0f}%"
+        for item in allocation
+    )
+
+    prompt = f"""You are a financial educator explaining a model portfolio recommendation to a retail investor.
+
+The investor has a {risk_band_label} risk profile (score {risk_score}/68).
+
+Proposed model portfolio allocation:
+{allocation_str}
+
+Write a short explanation (3-5 sentences) of WHY this allocation suits a {risk_band_label} investor.
+Use plain, simple language. Do NOT invent any numbers or percentages other than the ones given above."""
+
+    response = _get_client().chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=300,
+        temperature=0.5,
+    )
+    return response.choices[0].message.content.strip()
+
+
+# ---------------------------------------------------------------------------
 # Black-Litterman views from LLM
 # ---------------------------------------------------------------------------
 
