@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { LangProvider } from './context/LangContext'
+import { PortfolioProvider } from './context/PortfolioContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -47,7 +48,9 @@ export default function App() {
                 path="/"
                 element={
                   <PrivateRoute>
-                    <Layout />
+                    <PortfolioProvider>
+                      <Layout />
+                    </PortfolioProvider>
                   </PrivateRoute>
                 }
               >
