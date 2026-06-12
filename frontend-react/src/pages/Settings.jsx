@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { updateProfile, getMe } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useLang } from '../context/LangContext'
+import { useTheme } from '../context/ThemeContext'
 
 const COUNTRIES = [
   { value: 'IT', label: 'Italy',          flag: '🇮🇹', currency: 'EUR' },
@@ -67,7 +69,7 @@ function FlagSelect({ options, value, onChange }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
       >
         <div className="flex items-center gap-3">
           <span className="text-xl leading-none">{selected.flag}</span>
@@ -99,23 +101,80 @@ function FlagSelect({ options, value, onChange }) {
   )
 }
 
-function Section({ title, children }) {
+function Card({ children, className = '' }) {
   return (
-    <div className="space-y-2">
-      <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+    <div className={`bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-sm ${className}`}>
       {children}
-      <hr className="border-gray-100 dark:border-gray-800 mt-4" />
     </div>
   )
+}
+
+function SettingRow({ label, children }) {
+  return (
+    <div className="flex items-center justify-between py-3">
+      <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+      <div className="w-52">{children}</div>
+    </div>
+  )
+}
+
+function Toggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+        checked ? 'bg-gray-900 dark:bg-gray-100' : 'bg-gray-200 dark:bg-gray-700'
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-900 transition-transform ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  )
+}
+
+function riskColor(score) {
+  if (!score) return 'gray'
+  if (score <= 26) return 'blue'
+  if (score <= 52) return 'emerald'
+  if (score <= 76) return 'amber'
+  return 'rose'
+}
+
+function riskBg(score) {
+  if (!score) return 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+  if (score <= 26) return 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+  if (score <= 52) return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+  if (score <= 76) return 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+  return 'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
 }
 
 export default function Settings() {
   const { user, setUser } = useAuth()
   const { t, lang, setLang } = useLang()
+  const { dark, setDark } = useTheme()
+  const navigate = useNavigate()
   const [country, setCountry] = useState(user?.country ?? 'IT')
   const [currency, setCurrency] = useState(user?.display_currency ?? 'EUR')
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
+
+  const initials = user?.name
+    ? user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+    : '?'
+
+  function riskLabel(score) {
+    if (!score) return t('settings.riskNotSet')
+    if (score <= 26) return t('advisor.riskLow')
+    if (score <= 52) return t('advisor.riskMedLow')
+    if (score <= 76) return t('advisor.riskMed')
+    return t('advisor.riskHigh')
+  }
 
   async function save(patch) {
     setSaving(true)
@@ -151,41 +210,83 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-lg space-y-8">
+    <div className="max-w-lg mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t('settings.title')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('settings.subtitle')}</p>
         </div>
-        {saving && <span className="text-xs text-gray-400">{t('settings.saving')}</span>}
-        {savedMsg && !saving && <span className="text-xs text-emerald-500">{savedMsg} ✓</span>}
-      </div>
-
-      <div className="space-y-6">
-        <Section title={t('settings.location')}>
-          <FlagSelect options={COUNTRIES} value={country} onChange={handleCountry} />
-        </Section>
-
-        <Section title={t('settings.currency')}>
-          <FlagSelect options={CURRENCIES} value={currency} onChange={handleCurrency} />
-        </Section>
-
-        <Section title={t('settings.language')}>
-          <FlagSelect options={LANGUAGES} value={lang} onChange={handleLanguage} />
-        </Section>
-
-        <div className="pt-2 space-y-2 text-sm text-gray-500 dark:text-gray-400">
-          <p className="text-gray-700 dark:text-gray-300 font-medium text-sm">{t('settings.account')}</p>
-          <div className="flex justify-between py-1">
-            <span>{t('settings.name')}</span>
-            <span className="text-gray-900 dark:text-gray-100 font-medium">{user?.name}</span>
-          </div>
-          <div className="flex justify-between py-1">
-            <span>{t('settings.email')}</span>
-            <span className="text-gray-900 dark:text-gray-100 font-medium">{user?.email}</span>
-          </div>
+        <div className="text-xs h-6">
+          {saving && <span className="text-gray-400">{t('settings.saving')}</span>}
+          {savedMsg && !saving && <span className="text-emerald-500">{savedMsg} ✓</span>}
         </div>
       </div>
+
+      {/* Profile card */}
+      <Card className="p-5">
+        <div className="flex items-center gap-4">
+          <div className="h-14 w-14 rounded-full bg-gray-900 dark:bg-gray-100 flex items-center justify-center shrink-0">
+            <span className="text-lg font-bold text-white dark:text-gray-900">{initials}</span>
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{user?.name}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Preferences */}
+      <Card className="px-5 py-1 divide-y divide-gray-100 dark:divide-gray-800">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-4 pb-2">{t('settings.preferences')}</p>
+        <SettingRow label={t('settings.location')}>
+          <FlagSelect options={COUNTRIES} value={country} onChange={handleCountry} />
+        </SettingRow>
+        <SettingRow label={t('settings.currency')}>
+          <FlagSelect options={CURRENCIES} value={currency} onChange={handleCurrency} />
+        </SettingRow>
+        <SettingRow label={t('settings.language')}>
+          <FlagSelect options={LANGUAGES} value={lang} onChange={handleLanguage} />
+        </SettingRow>
+        <SettingRow label={t('settings.darkMode')}>
+          <div className="flex justify-end">
+            <Toggle checked={dark} onChange={setDark} />
+          </div>
+        </SettingRow>
+      </Card>
+
+      {/* Risk Profile */}
+      <Card className="p-5">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">{t('settings.riskProfile')}</p>
+        {user?.risk_score ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${riskBg(user.risk_score)}`}>
+                {riskLabel(user.risk_score)}
+              </span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {t('settings.score')}: {user.risk_score}/100
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/advisor')}
+              className="text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors"
+            >
+              {t('settings.retakeQuiz')} →
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-400">{t('settings.riskNotSet')}</span>
+            <button
+              onClick={() => navigate('/advisor')}
+              className="text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors"
+            >
+              {t('settings.retakeQuiz')} →
+            </button>
+          </div>
+        )}
+      </Card>
     </div>
   )
 }
