@@ -572,7 +572,7 @@ def _generate_excel(current_user: User, db: Session, portfolio_id: int | None = 
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    rows, total_value, total_pnl, _ = _build_export_rows(current_user, db, portfolio_id)
+    rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db, portfolio_id)
     if not rows:
         raise HTTPException(status_code=400, detail="No holdings to export")
 
