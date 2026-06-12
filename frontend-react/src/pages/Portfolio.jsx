@@ -9,6 +9,7 @@ import { deleteHolding, optimizePortfolio, downloadPortfolioExport } from '../ap
 import { aggregateHoldings } from '../utils/holdingsUtils'
 import AddTransactionModal from '../components/AddTransactionModal'
 import EditHoldingModal from '../components/EditHoldingModal'
+import SellHoldingModal from '../components/SellHoldingModal'
 import ImportModal from '../components/ImportModal'
 import { useLang } from '../context/LangContext'
 import { usePortfolio, PERIOD_OPTIONS } from '../context/PortfolioContext'
@@ -28,6 +29,9 @@ export default function Portfolio() {
   const [showModal, setShowModal]           = useState(false)
   const [showImport, setShowImport]         = useState(false)
   const [editingHolding, setEditingHolding] = useState(null)
+  const [actionMenu, setActionMenu]         = useState(null) // { id, top, left }
+  const [buyingHolding, setBuyingHolding]   = useState(null)
+  const [sellingHolding, setSellingHolding] = useState(null)
   const [optimization, setOptimization]     = useState(null)
   const [optLoading, setOptLoading]         = useState(false)
   const [optError, setOptError]             = useState('')
@@ -98,6 +102,7 @@ export default function Portfolio() {
   }
 
   const firstPortfolioId = activeTab !== 'aggregated' ? activeTab : portfolioList[0]?.id
+  const actionMenuHolding = actionMenu ? holdings.find((x) => x.id === actionMenu.id) : null
 
   const ASSET_TYPE_LABEL = {
     equity:     'Equity',
@@ -502,7 +507,16 @@ export default function Portfolio() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => setEditingHolding(h)} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 dark:border-blue-800 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors">{t('portfolio.edit')}</button>
+                        <button
+                          onClick={(e) => {
+                            if (actionMenu?.id === h.id) { setActionMenu(null); return }
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setActionMenu({ id: h.id, top: rect.bottom + 4, left: rect.left })
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 dark:border-blue-800 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                        >
+                          {t('portfolio.edit')} <span className="text-[10px] opacity-60">▾</span>
+                        </button>
                         <button onClick={() => handleDelete(h.id)} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">{t('portfolio.remove')}</button>
                       </div>
                     </TableCell>
@@ -550,7 +564,7 @@ export default function Portfolio() {
                 <div className="space-y-2">
                   {Object.entries(optimization.weights ?? {}).map(([ticker, w]) => (
                     <div key={ticker} className="flex items-center gap-3">
-                      <span className="w-14 text-sm font-semibold text-gray-800 dark:text-gray-200">{ticker}</span>
+                      <span className="w-20 shrink-0 truncate text-sm font-semibold text-gray-800 dark:text-gray-200">{ticker}</span>
                       <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
                         <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${(w * 100).toFixed(1)}%` }} />
                       </div>
@@ -567,11 +581,43 @@ export default function Portfolio() {
       {showImport && (
         <ImportModal portfolioList={portfolioList} defaultPortfolioId={firstPortfolioId} onClose={() => setShowImport(false)} onImported={refresh} />
       )}
+      {actionMenu && actionMenuHolding && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setActionMenu(null)} />
+          <div
+            className="fixed z-40 w-28 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden"
+            style={{ top: actionMenu.top, left: actionMenu.left }}
+          >
+            <button onClick={() => { setEditingHolding(actionMenuHolding); setActionMenu(null) }} className="w-full text-left px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('portfolio.edit')}</button>
+            <button onClick={() => { setBuyingHolding(actionMenuHolding); setActionMenu(null) }} className="w-full text-left px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('modal.buy')}</button>
+            {actionMenuHolding.asset_type !== 'cash' && (
+              <button onClick={() => { setSellingHolding(actionMenuHolding); setActionMenu(null) }} className="w-full text-left px-3 py-2 text-xs text-orange-600 dark:text-orange-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('modal.sell')}</button>
+            )}
+          </div>
+        </>
+      )}
       {editingHolding && (
         <EditHoldingModal holding={editingHolding} onClose={() => setEditingHolding(null)} onSaved={refresh} />
       )}
       {showModal && (
         <AddTransactionModal portfolioList={portfolioList} defaultPortfolioId={firstPortfolioId} onClose={() => setShowModal(false)} onAdded={refresh} />
+      )}
+      {buyingHolding && (
+        <AddTransactionModal
+          portfolioList={portfolioList}
+          defaultPortfolioId={firstPortfolioId}
+          presetAsset={{
+            ticker: buyingHolding.ticker,
+            name: buyingHolding.asset_name,
+            type: buyingHolding.asset_type,
+            portfolioId: buyingHolding.portfolio_id,
+          }}
+          onClose={() => setBuyingHolding(null)}
+          onAdded={refresh}
+        />
+      )}
+      {sellingHolding && (
+        <SellHoldingModal holding={sellingHolding} onClose={() => setSellingHolding(null)} onSold={refresh} />
       )}
     </div>
   )

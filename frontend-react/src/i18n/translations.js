@@ -104,6 +104,13 @@ const en = {
     save: 'Save changes',
     saving: 'Saving…',
   },
+  sellModal: {
+    title: 'Sell holding',
+    available: (v) => `Available: ${v.shares}`,
+    confirm: 'Confirm sale',
+    selling: 'Selling…',
+    maxError: 'Quantity exceeds your holding',
+  },
   importModal: {
     title: 'Import portfolio',
     subtitle: 'Upload a CSV or Excel file from your broker',
@@ -369,6 +376,13 @@ const it = {
     title: 'Modifica posizione',
     save: 'Salva modifiche',
     saving: 'Salvataggio…',
+  },
+  sellModal: {
+    title: 'Vendi posizione',
+    available: (v) => `Disponibili: ${v.shares}`,
+    confirm: 'Conferma vendita',
+    selling: 'Vendita in corso…',
+    maxError: 'La quantità supera la posizione disponibile',
   },
   importModal: {
     title: 'Importa portafoglio',
