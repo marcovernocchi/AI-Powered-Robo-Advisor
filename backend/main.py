@@ -80,6 +80,7 @@ class _RiskExplainRequest(_BaseModel):
 def explain_risk_profile(
     data: _RiskExplainRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Calls the LLM to generate a plain-language explanation of the user's MiFID II profile.
     Only real scoring data is passed; the model is instructed not to invent numbers."""
@@ -90,4 +91,6 @@ def explain_risk_profile(
         prudence_applied=data.prudence_applied,
         knowledge_level=data.knowledge_level,
     )
+    current_user.risk_explanation = explanation
+    db.commit()
     return {"explanation": explanation}

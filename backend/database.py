@@ -40,6 +40,8 @@ def migrate_db():
             conn.execute(text("ALTER TABLE users ADD COLUMN risk_prudence_applied BOOLEAN"))
         if 'risk_knowledge_level' not in columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN risk_knowledge_level VARCHAR"))
+        if 'risk_explanation' not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN risk_explanation TEXT"))
         result2 = conn.execute(text("PRAGMA table_info(portfolios)"))
         pcols = {row[1] for row in result2}
         if 'include_in_aggregated' not in pcols:
