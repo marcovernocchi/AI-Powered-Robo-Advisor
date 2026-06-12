@@ -6,6 +6,8 @@ import AddTransactionModal from '../components/AddTransactionModal'
 import { useAuth } from '../context/AuthContext'
 import { useLang } from '../context/LangContext'
 
+const MASKED_VALUE = '● ● ● ● ●'
+
 const PERIOD_OPTIONS = [
   { label: '1W',  api: '5d',  months: null, days: 7 },
   { label: '1M',  api: '1mo', months: 1,    days: null },
@@ -394,9 +396,9 @@ export default function Dashboard() {
             {holdings.length > 0 && (
               <div className="flex items-end gap-3">
                 <span className="text-3xl font-bold tracking-tight">
-                  {showCapital ? fmtCurrency(total) : '● ● ● ● ●'}
+                  {showCapital ? fmtCurrency(total) : MASKED_VALUE}
                 </span>
-                {periodChangePct !== null && showCapital && (
+                {periodChangePct !== null && (
                   <span className={`text-sm font-medium mb-1 ${isUp ? 'text-emerald-500' : 'text-red-500'}`}>
                     {isUp ? '↗' : '↘'} {isUp ? '+' : ''}{periodChangePct.toFixed(2)}%
                   </span>
@@ -575,7 +577,7 @@ export default function Dashboard() {
                       style: 'currency', currency: h.currency ?? displayCurrency, maximumFractionDigits: 2,
                     })}
                   </td>
-                  <td className="py-3 text-right font-medium">{fmtCurrency(h.value)}</td>
+                  <td className="py-3 text-right font-medium">{showCapital ? fmtCurrency(h.value) : MASKED_VALUE}</td>
                   <td className="py-3 text-right">
                     <span className={`font-medium ${h.pnl_pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {h.pnl_pct >= 0 ? '↗' : '↘'} {h.pnl_pct >= 0 ? '+' : ''}{h.pnl_pct.toFixed(2)}%
