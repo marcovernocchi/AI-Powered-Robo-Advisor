@@ -8,6 +8,7 @@ export default function ImportModal({ portfolioList, defaultPortfolioId, onClose
   const { t } = useLang()
   const [portfolioId, setPortfolioId] = useState(defaultPortfolioId ?? portfolioList[0]?.id ?? '')
   const [rows, setRows]               = useState(null)
+  const [invalidRows, setInvalidRows] = useState([])
   const [currency, setCurrency]       = useState('EUR')
   const [selected, setSelected]       = useState([])
   const [loading, setLoading]         = useState(false)
@@ -27,6 +28,7 @@ export default function ImportModal({ portfolioList, defaultPortfolioId, onClose
     try {
       const result = await importPreview(file)
       setRows(result.rows)
+      setInvalidRows(result.invalid_rows ?? [])
       setSelected(result.rows.map((_, i) => i))
       if (result.detected_currency) setCurrency(result.detected_currency)
     } catch (err) {
@@ -124,8 +126,15 @@ export default function ImportModal({ portfolioList, defaultPortfolioId, onClose
           {rows && !loading && (
             <>
               <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500">{t('importModal.found', { n: rows.length })}</p>
-                <button onClick={() => { setRows(null); setSelected([]); setError('') }} className="text-xs text-gray-400 hover:text-gray-600">
+                <div className="flex items-center gap-3">
+                  <p className="text-sm text-gray-500">{t('importModal.found', { n: rows.length })}</p>
+                  {invalidRows.length > 0 && (
+                    <span className="text-xs bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                      {invalidRows.length} non importabil{invalidRows.length === 1 ? 'e' : 'i'}
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => { setRows(null); setInvalidRows([]); setSelected([]); setError('') }} className="text-xs text-gray-400 hover:text-gray-600">
                   {t('importModal.changeFile')}
                 </button>
               </div>
@@ -180,6 +189,30 @@ export default function ImportModal({ portfolioList, defaultPortfolioId, onClose
                         <td className="px-3 py-2 text-right text-gray-400">{fmt(r.fees)}</td>
                       </tr>
                     ))}
+                    {invalidRows.map((r, i) => {
+                      const reasonLabel = {
+                        missing_shares: 'Quantità mancante',
+                        missing_price:  'Prezzo mancante',
+                        missing_ticker: 'Ticker non trovato',
+                      }[r.reason] ?? 'Non importabile'
+                      return (
+                        <tr key={`inv-${i}`} className="border-b border-gray-50 dark:border-gray-800 opacity-40 cursor-not-allowed">
+                          <td className="px-3 py-2">
+                            <input type="checkbox" disabled checked={false} className="rounded opacity-30" />
+                          </td>
+                          <td className="px-3 py-2 font-semibold text-gray-400">{r.ticker ?? '—'}</td>
+                          <td className="px-3 py-2 text-gray-400 max-w-40 truncate">{r.asset_name ?? '—'}</td>
+                          <td className="px-3 py-2 text-right text-gray-400">—</td>
+                          <td className="px-3 py-2 text-right text-gray-400">—</td>
+                          <td className="px-3 py-2 text-gray-400">—</td>
+                          <td className="px-3 py-2 text-right">
+                            <span className="text-[10px] bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                              {reasonLabel}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

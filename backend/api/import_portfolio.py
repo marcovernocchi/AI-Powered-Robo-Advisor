@@ -118,18 +118,18 @@ def detect_columns(df_cols):
 
 
 def try_parse_excel(content: bytes) -> pd.DataFrame:
-    """Try reading Excel with header on row 0, then row 1 (for files with a title row)."""
-    for header_row in (0, 1):
+    """Try reading Excel with header on rows 0-4 to handle empty/title rows before the real header."""
+    last_df = None
+    for header_row in range(5):
         try:
             df = pd.read_excel(io.BytesIO(content), header=header_row)
+            last_df = df
             mapping = detect_columns(df.columns)
-            # Accept if we can at least find ticker/isin AND shares
             if ('ticker' in mapping or 'isin' in mapping) and 'shares' in mapping:
                 return df
         except Exception:
             continue
-    # Fall back to header=1 (title row is very common in Italian broker exports)
-    return pd.read_excel(io.BytesIO(content), header=1)
+    return last_df if last_df is not None else pd.read_excel(io.BytesIO(content), header=0)
 
 
 def ai_detect_columns(df: pd.DataFrame) -> dict:
@@ -220,8 +220,21 @@ def smart_detect_columns(df: pd.DataFrame) -> dict:
     return detect_columns(df.columns)
 
 
+def _name_match_score(candidate_name: str, target_name: str) -> int:
+    """Count meaningful words from target_name that appear in candidate_name."""
+    target = target_name.lower()
+    candidate = candidate_name.lower()
+    words = [w for w in target.split() if len(w) > 3]
+    return sum(1 for w in words if w in candidate)
+
+
 def resolve_ticker(row, mapping):
-    """Resolves a ticker symbol from a given row and mapping, prioritizing the 'ticker' field and falling back to 'isin' with yfinance lookup."""
+    """Resolves a ticker symbol from a given row and mapping.
+
+    Priority: explicit ticker column → ISIN lookup with name cross-check → raw ISIN.
+    When resolving via ISIN, all yfinance search results are scored by name similarity
+    against the asset_name column so we pick the right listing across exchanges.
+    """
     if 'ticker' in mapping:
         val = str(row[mapping['ticker']]).strip()
         if val and val.lower() not in ('nan', ''):
@@ -229,11 +242,28 @@ def resolve_ticker(row, mapping):
     if 'isin' in mapping:
         isin = str(row[mapping['isin']]).strip()
         if isin and isin.lower() not in ('nan', ''):
+            asset_name = None
+            if 'asset_name' in mapping:
+                raw = row[mapping['asset_name']]
+                if not pd.isna(raw):
+                    asset_name = str(raw).strip()
             try:
                 import yfinance as yf
                 quotes = yf.Search(isin).quotes
-                if quotes and quotes[0].get('symbol'):
-                    return quotes[0]['symbol'].upper()
+                if quotes:
+                    if asset_name and len(quotes) > 1:
+                        scored = sorted(
+                            quotes,
+                            key=lambda q: _name_match_score(
+                                q.get('shortname') or q.get('longname') or '', asset_name
+                            ),
+                            reverse=True,
+                        )
+                        symbol = scored[0].get('symbol')
+                    else:
+                        symbol = quotes[0].get('symbol')
+                    if symbol:
+                        return symbol.upper()
             except Exception:
                 pass
             return isin.upper()
@@ -311,21 +341,41 @@ async def import_preview(
     detected_currency = detect_currency(df[mapping['avg_buy_price']])
 
     rows = []
+    invalid_rows = []
     for _, row in df.iterrows():
-        shares_val = clean_number(row[mapping['shares']])
-        price_val  = clean_number(row[mapping['avg_buy_price']])
-        if shares_val is None or price_val is None or shares_val <= 0 or price_val <= 0:
-            continue
-
-        ticker = resolve_ticker(row, mapping)
-        if not ticker:
-            continue
-
         name = None
         if 'asset_name' in mapping:
             raw = row[mapping['asset_name']]
             if not pd.isna(raw):
                 name = str(raw).strip()
+
+        shares_val = clean_number(row[mapping['shares']])
+        price_val  = clean_number(row[mapping['avg_buy_price']])
+
+        if shares_val is None or shares_val <= 0:
+            raw_id = None
+            if 'isin' in mapping:
+                raw_id = str(row[mapping['isin']]).strip()
+            if 'ticker' in mapping:
+                raw_id = str(row[mapping['ticker']]).strip()
+            if raw_id and raw_id.lower() not in ('nan', ''):
+                invalid_rows.append({'ticker': raw_id, 'asset_name': name, 'reason': 'missing_shares'})
+            continue
+
+        if price_val is None or price_val <= 0:
+            raw_id = None
+            if 'isin' in mapping:
+                raw_id = str(row[mapping['isin']]).strip()
+            if 'ticker' in mapping:
+                raw_id = str(row[mapping['ticker']]).strip()
+            if raw_id and raw_id.lower() not in ('nan', ''):
+                invalid_rows.append({'ticker': raw_id, 'asset_name': name, 'reason': 'missing_price'})
+            continue
+
+        ticker = resolve_ticker(row, mapping)
+        if not ticker:
+            invalid_rows.append({'ticker': None, 'asset_name': name, 'reason': 'missing_ticker'})
+            continue
 
         asset_type = 'equity'
         if 'asset_type' in mapping:
@@ -358,7 +408,7 @@ async def import_preview(
             'fees': fees_val,
         })
 
-    if not rows:
+    if not rows and not invalid_rows:
         raise HTTPException(status_code=422, detail="No valid rows found in the file.")
 
     if 'asset_type' not in mapping:
@@ -370,7 +420,7 @@ async def import_preview(
         except Exception:
             pass
 
-    return {'rows': rows, 'total': len(rows), 'detected_currency': detected_currency}
+    return {'rows': rows, 'invalid_rows': invalid_rows, 'total': len(rows), 'detected_currency': detected_currency}
 
 
 @router.post("/import/confirm", status_code=201)
