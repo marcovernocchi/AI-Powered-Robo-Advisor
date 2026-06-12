@@ -340,7 +340,7 @@ export default function Backtesting() {
                     value={a.weight}
                     min={0}
                     max={100}
-                    step={0.1}
+                    step="any"
                     fallback={0}
                     onChange={(v) => updateAsset(i, 'weight', v)}
                     className="w-16 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100"
@@ -383,7 +383,7 @@ export default function Backtesting() {
 
               <div>
                 <label className={labelClass}>{bt('capital')}</label>
-                <NumberInput value={capital} onChange={setCapital} min={1} max={10000000} step={100} optional className={inputClass} />
+                <NumberInput value={capital} onChange={setCapital} min={1} max={10000000} step="any" optional className={inputClass} />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
