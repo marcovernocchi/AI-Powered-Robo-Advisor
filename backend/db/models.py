@@ -12,6 +12,10 @@ class User(Base):
     name = Column(String, nullable=False)
     hashed_password = Column(String, nullable=False)
     risk_score = Column(Integer, nullable=True)
+    risk_section_scores = Column(JSON, nullable=True)  # e.g. {"A": 20, "B": 8, "C": 15, "D": 4}
+    risk_bands = Column(JSON, nullable=True)  # e.g. {"A": 3, "B": 2, "C": 3}
+    risk_prudence_applied = Column(Boolean, nullable=True, default=False)
+    risk_knowledge_level = Column(String, nullable=True)
     country = Column(String, nullable=False, default='US', server_default='US')
     display_currency = Column(String, nullable=False, default='USD', server_default='USD')
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -274,6 +274,10 @@ const en = {
     riskMedLow: 'Medium (Conservative)',
     riskMed: 'Medium-High (Balanced)',
     riskHigh: 'High (Aggressive)',
+    suggestedPortfolioTitle: 'Suggested Starter Portfolio',
+    suggestedPortfolioDesc: 'A model portfolio matched to your risk profile — a starting point before you add your own holdings.',
+    suggestedPortfolioLoading: 'Loading suggested portfolio…',
+    suggestedPortfolioError: 'Could not load suggested portfolio',
     sectionA: [
       { key: 'a1', label: 'A1. Annual net income', options: ['Up to €30,000', '€30,001 – €70,000', '€70,001 – €150,000', 'Over €150,000'] },
       { key: 'a2', label: 'A2. Total net wealth', options: ['Up to €100,000', '€100,001 – €500,000', '€500,001 – €2,000,000', 'Over €2,000,000'] },
@@ -476,6 +480,10 @@ const it = {
     riskMedLow: 'Medio (Conservativo)',
     riskMed: 'Medio-Alto (Bilanciato)',
     riskHigh: 'Alto (Aggressivo)',
+    suggestedPortfolioTitle: 'Portafoglio Suggerito di Partenza',
+    suggestedPortfolioDesc: 'Un portafoglio modello adatto al tuo profilo di rischio — un punto di partenza prima di aggiungere i tuoi titoli.',
+    suggestedPortfolioLoading: 'Caricamento del portafoglio suggerito…',
+    suggestedPortfolioError: 'Impossibile caricare il portafoglio suggerito',
     sectionA: [
       { key: 'a1', label: 'A1. Reddito netto annuo', options: ['Fino a €30.000', '€30.001 – €70.000', '€70.001 – €150.000', 'Oltre €150.000'] },
       { key: 'a2', label: 'A2. Patrimonio netto totale', options: ['Fino a €100.000', '€100.001 – €500.000', '€500.001 – €2.000.000', 'Oltre €2.000.000'] },

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Card, Title, Text, Button, Badge,
   Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell,
@@ -6,6 +6,7 @@ import {
 } from '@tremor/react'
 import { PieChart, Pie, Cell } from 'recharts'
 import { getPortfolio, getPortfolioById, getPortfolioList, deleteHolding, optimizePortfolio, downloadPortfolioExport, getMarketHistory, getDividends } from '../api/client'
+import { aggregateHoldings } from '../utils/holdingsUtils'
 import AddTransactionModal from '../components/AddTransactionModal'
 import EditHoldingModal from '../components/EditHoldingModal'
 import ImportModal from '../components/ImportModal'
@@ -120,18 +121,22 @@ export default function Portfolio() {
   const [sortKey, setSortKey]           = useState(null)
   const [sortDir, setSortDir]           = useState('desc')
   const [chartView, setChartView]       = useState('type')
-  const [exportLoading, setExportLoading] = useState(null)   // 'excel' | 'pdf' | null
+  const [exportLoading, setExportLoading] = useState(null)
   const [exportError, setExportError]   = useState('')
+  const [showExportPanel, setShowExportPanel] = useState(false)
+  const [exportTargetId, setExportTargetId]   = useState('aggregated')
+  const [exportFormat, setExportFormat]       = useState('excel')
   const [chartData, setChartData]       = useState([])
   const [chartLoading, setChartLoading] = useState(false)
   const [selectedPeriod, setSelectedPeriod] = useState(PERIOD_OPTIONS[3])
   const [selectedSlice, setSelectedSlice] = useState(null)
+  const optimizeRef = useRef(null)
 
-  async function handleExport(format) {
+  async function handleExport(format, portfolioId = 'aggregated') {
     setExportError('')
     setExportLoading(format)
     try {
-      await downloadPortfolioExport(format)
+      await downloadPortfolioExport(format, portfolioId !== 'aggregated' ? portfolioId : null)
     } catch (err) {
       setExportError(err.message)
     } finally {
@@ -201,6 +206,14 @@ export default function Portfolio() {
     } catch (e) { console.error(e) }
   }
 
+  async function handleDeleteMultiple(ids) {
+    if (!window.confirm(`Remove all ${ids.length} positions for this ticker?`)) return
+    try {
+      await Promise.all(ids.map((id) => deleteHolding(id)))
+      await fetchAll()
+    } catch (e) { console.error(e) }
+  }
+
   async function handleOptimize() {
     setOptError('')
     setOptLoading(true)
@@ -218,9 +231,10 @@ export default function Portfolio() {
   if (loading) return <p className="text-gray-400 text-sm">Loading...</p>
 
   const rawHoldings = portfolio?.holdings ?? []
+  const aggregated  = aggregateHoldings(rawHoldings)
   const holdings = sortKey
-    ? [...rawHoldings].sort((a, b) => sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey])
-    : rawHoldings
+    ? [...aggregated].sort((a, b) => sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey])
+    : aggregated
   const total    = portfolio?.total_value ?? 0
   const displayCurrency = portfolio?.display_currency ?? 'USD'
 
@@ -254,7 +268,7 @@ export default function Portfolio() {
   ]
 
   const chartDataByType = Object.entries(
-    holdings.reduce((acc, h) => {
+    rawHoldings.reduce((acc, h) => {
       const label = ASSET_TYPE_LABEL[h.asset_type] ?? h.asset_type
       acc[label] = (acc[label] ?? 0) + h.value
       return acc
@@ -263,7 +277,7 @@ export default function Portfolio() {
    .sort((a, b) => b.value - a.value)
 
   // Aggregate duplicate tickers then sort by value descending — no hard cap
-  const tickerMap = holdings.reduce((acc, h) => {
+  const tickerMap = rawHoldings.reduce((acc, h) => {
     if (!acc[h.ticker]) acc[h.ticker] = { value: 0, displayName: h.asset_name || h.ticker }
     acc[h.ticker].value += h.value
     return acc
@@ -291,14 +305,11 @@ export default function Portfolio() {
   return (
     <div className="space-y-4">
 
-      {/* Two-column layout */}
-      <div className="flex gap-5 items-start" style={{ gridTemplateColumns: '3fr 2fr' }}>
+      {/* Top row: chart + allocation (same height) */}
+      <div className="flex gap-5 items-stretch">
 
-        {/* LEFT */}
-        <div className="flex-1 min-w-0 space-y-4">
-
-          {/* Box 1: portfolio tabs + value + actions */}
-          <div className={`${boxClass} p-5`}>
+        {/* Box 1: portfolio tabs + value + chart */}
+        <div className={`${boxClass} p-5 flex-1 min-w-0`}>
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('portfolio.title')}</h1>
@@ -419,42 +430,176 @@ export default function Portfolio() {
             )}
           </div>
 
-          {/* Box 2: Holdings table */}
-          <div className={`${boxClass} p-5`}>
+        {/* RIGHT — allocation sidebar (same height as Box 1) */}
+        {holdings.length > 0 && (
+          <div className="w-[500px] shrink-0">
+            <div className={`${boxClass} p-5 h-full flex flex-col`}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Allocation</h2>
+                <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setChartView('type')}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                      chartView === 'type'
+                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                    }`}
+                  >Type</button>
+                  <button
+                    onClick={() => setChartView('ticker')}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                      chartView === 'ticker'
+                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                    }`}
+                  >Asset</button>
+                </div>
+              </div>
+
+              <div className="flex-1 flex items-center justify-center">
+                <div className="relative" style={{ width: 300, height: 300 }}>
+                  <PieChart width={300} height={300}>
+                    <Pie
+                      data={allocationData}
+                      cx={150}
+                      cy={150}
+                      innerRadius={95}
+                      outerRadius={140}
+                      dataKey="value"
+                      strokeWidth={0}
+                      onMouseEnter={(data) => setSelectedSlice(data)}
+                      onMouseLeave={() => setSelectedSlice(null)}
+                    >
+                      {allocationData.map((entry, i) => (
+                        <Cell
+                          key={entry.name}
+                          fill={CHART_HEX[i % CHART_HEX.length]}
+                          opacity={selectedSlice && selectedSlice.name !== entry.name ? 0.25 : 1}
+                          style={{ cursor: 'default', transition: 'opacity 0.15s' }}
+                        />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                    <div style={{ maxWidth: 150 }}>
+                      {selectedSlice ? (
+                        <>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug mb-2">
+                            {selectedSlice.displayName ?? selectedSlice.name}
+                          </p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtCurrency(selectedSlice.value)}</p>
+                          <p className="text-sm text-gray-400 mt-1">{total > 0 ? ((selectedSlice.value / total) * 100).toFixed(1) : 0}%</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-gray-400 mb-2">Total</p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtCurrency(total)}</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Box 2: Holdings table */}
+      <div className={`${boxClass} p-5`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('portfolio.holdings')}</h2>
               <div className="flex items-center gap-2">
-                <Button size="xs" variant="secondary"
-                  disabled={holdings.length === 0 || exportLoading !== null}
-                  loading={exportLoading === 'excel'}
-                  onClick={() => handleExport('excel')}
-                >Excel</Button>
-                <Button size="xs" variant="secondary"
-                  disabled={holdings.length === 0 || exportLoading !== null}
-                  loading={exportLoading === 'pdf'}
-                  onClick={() => handleExport('pdf')}
-                >PDF</Button>
+                {holdings.length > 0 && (
+                  <button
+                    onClick={() => {
+                      handleOptimize()
+                      setTimeout(() => optimizeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+                    }}
+                    disabled={optLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {optLoading ? 'Ottimizzando...' : 'Optimize'}
+                  </button>
+                )}
+              <div className="relative">
+                <button
+                  disabled={holdings.length === 0}
+                  onClick={() => setShowExportPanel(v => !v)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-40"
+                >
+                  Export <span className="text-[10px] opacity-60">▾</span>
+                </button>
+
+                {showExportPanel && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowExportPanel(false)} />
+                    <div className="absolute right-0 top-full mt-2 z-20 w-60 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl p-4">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Portafoglio</p>
+                      <div className="space-y-1.5 mb-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="radio" name="exportTarget" value="aggregated"
+                            checked={exportTargetId === 'aggregated'}
+                            onChange={() => setExportTargetId('aggregated')}
+                            className="accent-gray-900 dark:accent-white"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">Tutti i portafogli</span>
+                        </label>
+                        {portfolioList.map(p => (
+                          <label key={p.id} className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="exportTarget" value={p.id}
+                              checked={exportTargetId === p.id}
+                              onChange={() => setExportTargetId(p.id)}
+                              className="accent-gray-900 dark:accent-white"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">{p.name}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Formato</p>
+                      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 mb-4">
+                        {['excel', 'pdf'].map(f => (
+                          <button key={f} onClick={() => setExportFormat(f)}
+                            className={`flex-1 py-1 text-xs font-medium rounded-md transition-colors ${
+                              exportFormat === f
+                                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                            }`}
+                          >{f === 'excel' ? 'Excel' : 'PDF'}</button>
+                        ))}
+                      </div>
+
+                      {exportError && <p className="text-xs text-red-500 mb-3">{exportError}</p>}
+
+                      <button
+                        onClick={() => { handleExport(exportFormat, exportTargetId); setShowExportPanel(false) }}
+                        disabled={exportLoading !== null}
+                        className="w-full py-1.5 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                      >
+                        {exportLoading ? 'Esportando...' : 'Esporta'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
-            {exportError && <p className="mb-3 text-xs text-red-500">{exportError}</p>}
+          </div>
             {holdings.length > 0 ? (
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableHeaderCell>{t('portfolio.asset')}</TableHeaderCell>
-                    <TableHeaderCell>{t('portfolio.type')}</TableHeaderCell>
-                    <TableHeaderCell>{t('portfolio.shares')}</TableHeaderCell>
-                    <TableHeaderCell>{t('portfolio.avgBuy')}</TableHeaderCell>
-                    <TableHeaderCell>{t('portfolio.current')}</TableHeaderCell>
+                    <TableHeaderCell className="w-1/2">Asset</TableHeaderCell>
+                    <TableHeaderCell>Valore acquisto</TableHeaderCell>
                     <TableHeaderCell>
                       <button onClick={() => handleSort('value')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                        {t('portfolio.value')}
+                        Valore ora
                         <span className="text-gray-300 dark:text-gray-600">{sortKey === 'value' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
                       </button>
                     </TableHeaderCell>
                     <TableHeaderCell>
                       <button onClick={() => handleSort('pnl_pct')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                        {t('portfolio.pl')}
+                        P&amp;L
                         <span className="text-gray-300 dark:text-gray-600">{sortKey === 'pnl_pct' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
                       </button>
                     </TableHeaderCell>
@@ -462,35 +607,54 @@ export default function Portfolio() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {holdings.map((h) => (
-                    <TableRow key={h.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-semibold">{h.ticker}</p>
-                          {h.asset_name && <p className="text-xs text-gray-400 truncate max-w-32">{h.asset_name}</p>}
-                        </div>
-                      </TableCell>
-                      <TableCell><span className="text-xs text-gray-400">{ASSET_TYPE_LABEL[h.asset_type] ?? h.asset_type}</span></TableCell>
-                      <TableCell>{h.shares}</TableCell>
-                      <TableCell>{fmtCurrency(h.avg_buy_price, h.currency)}</TableCell>
-                      <TableCell>
-                        {fmtCurrency(h.current_price, h.currency)}
-                        {h.price_stale && <span title="Prezzo non aggiornato" className="ml-1 text-xs text-amber-400">⚠</span>}
-                      </TableCell>
-                      <TableCell>{fmtCurrency(h.value)}</TableCell>
-                      <TableCell>
-                        <Badge color={h.pnl_pct >= 0 ? 'emerald' : 'red'}>
-                          {h.pnl_pct >= 0 ? '+' : ''}{h.pnl_pct.toFixed(2)}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-3">
-                          <button onClick={() => setEditingHolding(h)} className="text-xs text-blue-400 hover:text-blue-600">{t('portfolio.edit')}</button>
-                          <button onClick={() => handleDelete(h.id)} className="text-xs text-red-400 hover:text-red-600">{t('portfolio.remove')}</button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {holdings.map((h) => {
+                    const buyTotal = h.avg_buy_price * h.shares
+                    const pnlAbs = h.value - buyTotal
+                    return (
+                      <TableRow key={h.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-gray-100">
+                              {h.asset_name || h.ticker}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {h.ticker}
+                              {h.asset_name && <span className="ml-2">×{h.shares}</span>}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="tabular-nums text-gray-900 dark:text-gray-100">{fmtCurrency(buyTotal, h.currency)}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{fmtCurrency(h.avg_buy_price, h.currency)} avg</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="tabular-nums text-gray-900 dark:text-gray-100">
+                              {fmtCurrency(h.value)}
+                              {h.price_stale && <span title="Prezzo non aggiornato" className="ml-1 text-xs text-amber-400">⚠</span>}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">{fmtCurrency(h.current_price, h.currency)}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <p className={`tabular-nums font-medium ${pnlAbs >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {pnlAbs >= 0 ? '+' : ''}{fmtCurrency(pnlAbs)}
+                          </p>
+                          <p className={`text-xs mt-0.5 ${h.pnl_pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {h.pnl_pct >= 0 ? '↗' : '↘'}{Math.abs(h.pnl_pct).toFixed(2)}%
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-3">
+                            <button onClick={() => setEditingHolding(h)} className="text-xs text-blue-400 hover:text-blue-600">{t('portfolio.edit')}</button>
+                            <button onClick={() => handleDelete(h.id)} className="text-xs text-red-400 hover:text-red-600">{t('portfolio.remove')}</button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             ) : (
@@ -500,7 +664,7 @@ export default function Portfolio() {
 
           {/* Box 3: Optimization */}
           {holdings.length >= 2 && (
-            <div className={`${boxClass} p-5`}>
+            <div ref={optimizeRef} className={`${boxClass} p-5`}>
               <div className="flex items-start justify-between mb-1">
                 <div>
                   <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('portfolio.optimization')}</h2>
@@ -545,109 +709,6 @@ export default function Portfolio() {
               )}
             </div>
           )}
-        </div>
-
-        {/* RIGHT — allocation sidebar */}
-        {holdings.length > 0 && (
-          <div className="w-[500px] shrink-0 sticky top-6">
-            <div className={`${boxClass} p-5`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Allocation</h2>
-                <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
-                  <button
-                    onClick={() => setChartView('type')}
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                      chartView === 'type'
-                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                    }`}
-                  >Type</button>
-                  <button
-                    onClick={() => setChartView('ticker')}
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                      chartView === 'ticker'
-                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                    }`}
-                  >Asset</button>
-                </div>
-              </div>
-
-              {/* Donut with hover-interactive center */}
-              <div className="relative mx-auto" style={{ width: 240, height: 240 }}>
-                <PieChart width={240} height={240}>
-                  <Pie
-                    data={allocationData}
-                    cx={120}
-                    cy={120}
-                    innerRadius={78}
-                    outerRadius={115}
-                    dataKey="value"
-                    strokeWidth={0}
-                    onMouseEnter={(data) => setSelectedSlice(data)}
-                    onMouseLeave={() => setSelectedSlice(null)}
-                  >
-                    {allocationData.map((entry, i) => (
-                      <Cell
-                        key={entry.name}
-                        fill={CHART_HEX[i % CHART_HEX.length]}
-                        opacity={selectedSlice && selectedSlice.name !== entry.name ? 0.25 : 1}
-                        style={{ cursor: 'default', transition: 'opacity 0.15s' }}
-                      />
-                    ))}
-                  </Pie>
-                </PieChart>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-4">
-                  {selectedSlice ? (
-                    <>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug mb-1 line-clamp-3">
-                        {selectedSlice.displayName ?? selectedSlice.name}
-                      </p>
-                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtCurrency(selectedSlice.value)}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{total > 0 ? ((selectedSlice.value / total) * 100).toFixed(1) : 0}%</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-[11px] text-gray-400 mb-1">Total</p>
-                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtCurrency(total)}</p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Legend with % bars */}
-              <div className="mt-5 space-y-3">
-                {allocationData.map((d, i) => {
-                  const pct = total > 0 ? (d.value / total) * 100 : 0
-                  return (
-                    <div key={d.name}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: CHART_HEX[i % CHART_HEX.length] }}
-                          />
-                          <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{d.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0 ml-2">
-                          <span className="text-xs font-medium text-gray-900 dark:text-gray-100 tabular-nums">{fmtCurrency(d.value)}</span>
-                          <span className="text-xs text-gray-400 w-10 text-right tabular-nums">{pct.toFixed(1)}%</span>
-                        </div>
-                      </div>
-                      <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1">
-                        <div
-                          className="h-1 rounded-full transition-all duration-500"
-                          style={{ width: `${pct.toFixed(1)}%`, backgroundColor: CHART_HEX[i % CHART_HEX.length] }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
       {showImport && (
         <ImportModal portfolioList={portfolioList} defaultPortfolioId={firstPortfolioId} onClose={() => setShowImport(false)} onImported={fetchAll} />

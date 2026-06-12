@@ -6,6 +6,8 @@ import AddTransactionModal from '../components/AddTransactionModal'
 import { useAuth } from '../context/AuthContext'
 import { useLang } from '../context/LangContext'
 
+const MASKED_VALUE = '● ● ● ● ●'
+
 const PERIOD_OPTIONS = [
   { label: '1W',  api: '5d',  months: null, days: 7 },
   { label: '1M',  api: '1mo', months: 1,    days: null },
@@ -48,6 +50,7 @@ function riskColor(score) {
 }
 
 import { getMarketHistory, getDividends } from '../api/client'
+import { aggregateHoldings } from '../utils/holdingsUtils'
 
 async function buildChartData(holdings, period) {
   if (!holdings?.length) return []
@@ -300,6 +303,7 @@ export default function Dashboard() {
 
   const total = portfolioData?.total_value ?? 0
   const holdings = portfolioData?.holdings ?? []
+  const aggregatedHoldings = aggregateHoldings(holdings)
   const displayCurrency = portfolioData?.display_currency ?? 'USD'
 
   function fmtCurrency(value) {
@@ -394,9 +398,9 @@ export default function Dashboard() {
             {holdings.length > 0 && (
               <div className="flex items-end gap-3">
                 <span className="text-3xl font-bold tracking-tight">
-                  {showCapital ? fmtCurrency(total) : '● ● ● ● ●'}
+                  {showCapital ? fmtCurrency(total) : MASKED_VALUE}
                 </span>
-                {periodChangePct !== null && showCapital && (
+                {periodChangePct !== null && (
                   <span className={`text-sm font-medium mb-1 ${isUp ? 'text-emerald-500' : 'text-red-500'}`}>
                     {isUp ? '↗' : '↘'} {isUp ? '+' : ''}{periodChangePct.toFixed(2)}%
                   </span>
@@ -508,11 +512,11 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{t('dashboard.summary')}</p>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">{t('dashboard.positions')}</span>
-                <span className="font-medium">{holdings.length}</span>
+                <span className="font-medium">{aggregatedHoldings.length}</span>
               </div>
               {(() => {
-                const best = [...holdings].sort((a, b) => b.pnl_pct - a.pnl_pct)[0]
-                const worst = [...holdings].sort((a, b) => a.pnl_pct - b.pnl_pct)[0]
+                const best = [...aggregatedHoldings].sort((a, b) => b.pnl_pct - a.pnl_pct)[0]
+                const worst = [...aggregatedHoldings].sort((a, b) => a.pnl_pct - b.pnl_pct)[0]
                 return (
                   <>
                     <div className="flex justify-between text-sm">
@@ -557,8 +561,8 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {holdings.map((h) => (
-                <tr key={h.id} className="border-b border-gray-50 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+              {aggregatedHoldings.map((h) => (
+                <tr key={h.ticker} className="border-b border-gray-50 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                   <td className="py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-400 shrink-0">
@@ -575,7 +579,7 @@ export default function Dashboard() {
                       style: 'currency', currency: h.currency ?? displayCurrency, maximumFractionDigits: 2,
                     })}
                   </td>
-                  <td className="py-3 text-right font-medium">{fmtCurrency(h.value)}</td>
+                  <td className="py-3 text-right font-medium">{showCapital ? fmtCurrency(h.value) : MASKED_VALUE}</td>
                   <td className="py-3 text-right">
                     <span className={`font-medium ${h.pnl_pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {h.pnl_pct >= 0 ? '↗' : '↘'} {h.pnl_pct >= 0 ? '+' : ''}{h.pnl_pct.toFixed(2)}%

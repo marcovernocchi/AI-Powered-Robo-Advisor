@@ -137,7 +137,7 @@ export default function Market() {
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between">
                   <span className="text-gray-400">{label}</span>
-                  <span className={`font-medium ${!value ? 'text-gray-300 dark:text-gray-600' : ''}`}>
+                  <span className={`font-medium ${!value ? 'text-gray-300 dark:text-gray-400' : ''}`}>
                     {value ?? 'N/A'}
                   </span>
                 </div>
@@ -169,7 +169,7 @@ export default function Market() {
             </div>
           </div>
           <AreaChart
-            className="h-64"
+            className="h-64 [&_.recharts-cartesian-axis-tick_text]:dark:fill-white [&_.recharts-cartesian-axis-tick_text]:text-xs"
             data={chartData}
             index="date"
             categories={['Price']}
@@ -178,6 +178,15 @@ export default function Market() {
             showLegend={false}
             curveType="monotone"
             yAxisWidth={80}
+            customTooltip={({ payload, active, label }) => {
+              if (!active || !payload?.length) return null
+              return (
+                <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg px-4 py-3">
+                  <p className="text-xs text-gray-400 mb-1">{label}</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-gray-100">${payload[0].value.toFixed(2)}</p>
+                </div>
+              )
+            }}
           />
         </Card>
       )}

@@ -1,12 +1,13 @@
 import { useEffect, useState, Component } from 'react'
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  Radar, Legend, ResponsiveContainer,
+  Radar, Legend, ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
 } from 'recharts'
 import { Card, Title, Text, Button, Badge } from '@tremor/react'
 import {
   generateAdvice, getAdviceHistory, setRiskProfile, getMe,
   getPortfolio, getPortfolioMetrics, optimizePortfolio, explainRiskProfile,
+  getPortfolioSuggestions,
 } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useLang } from '../context/LangContext'
@@ -402,6 +403,58 @@ function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
 }
 
 // ---------------------------------------------------------------------------
+// Suggested Starter Portfolio — pie chart + legend for /portfolio/suggestions
+// ---------------------------------------------------------------------------
+const SUGGESTION_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#84cc16']
+const CASH_COLOR = '#9ca3af'
+
+function suggestionColor(item, index) {
+  return item.asset_class === 'cash' ? CASH_COLOR : SUGGESTION_COLORS[index % SUGGESTION_COLORS.length]
+}
+
+function SuggestedPortfolioChart({ allocation }) {
+  const data = allocation.map((item) => ({ name: item.asset_name, value: item.weight, ticker: item.ticker }))
+
+  return (
+    <ResponsiveContainer width="100%" height={320}>
+      <PieChart>
+        <Pie
+          data={data}
+          dataKey="value"
+          nameKey="name"
+          cx="50%"
+          cy="50%"
+          innerRadius={60}
+          outerRadius={110}
+          label={({ ticker, value }) => `${ticker ?? 'Cash'} (${Math.round(value * 100)}%)`}
+        >
+          {allocation.map((item, index) => (
+            <Cell key={item.ticker ?? 'cash'} fill={suggestionColor(item, index)} />
+          ))}
+        </Pie>
+        <Tooltip formatter={(value, name) => [`${Math.round(value * 100)}%`, name]} />
+      </PieChart>
+    </ResponsiveContainer>
+  )
+}
+
+function SuggestedPortfolioLegend({ allocation }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
+      {allocation.map((item, index) => (
+        <div key={item.ticker ?? 'cash'} className="flex items-center gap-2">
+          <span
+            className="inline-block w-3 h-3 rounded-sm shrink-0"
+            style={{ backgroundColor: suggestionColor(item, index) }}
+          />
+          <span>{item.asset_name}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Error Boundary — catches render errors in this page without a white screen
 // ---------------------------------------------------------------------------
 class AIAdvisorErrorBoundary extends Component {
@@ -467,7 +520,8 @@ function AIAdvisorInner() {
   const [history, setHistory] = useState([])
 
   // --- new state for radars & explanations ---
-  // riskDetails is populated only after questionnaire submission in this session.
+  // riskDetails is populated either after questionnaire submission in this
+  // session, or from the persisted sub-scores on /me (see effect below).
   const [riskDetails, setRiskDetails] = useState(null)
   // LLM explanation (separate call after questionnaire submit)
   const [riskExplanation, setRiskExplanation] = useState('')
@@ -480,12 +534,32 @@ function AIAdvisorInner() {
   const [portfolioLoading, setPortfolioLoading] = useState(false)
   const [portfolioError, setPortfolioError] = useState('')
 
+  // Suggested starter portfolio (shown only when the user has no holdings yet)
+  const [suggestionsData, setSuggestionsData] = useState(null)
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
+  const [suggestionsError, setSuggestionsError] = useState('')
+
   // Load advice history on mount
   useEffect(() => {
     if (user?.risk_score) {
       getAdviceHistory().then(setHistory).catch(console.error)
     }
   }, [user?.risk_score])
+
+  // Populate riskDetails from persisted sub-scores on /me, for users who
+  // completed the questionnaire in a previous session. Users who completed
+  // it before sub-scores were persisted have risk_section_scores == null,
+  // so riskDetails stays null and the "retake the questionnaire" fallback shows.
+  // riskExplanation (LLM text) is intentionally NOT reloaded here.
+  useEffect(() => {
+    if (!user?.risk_score || riskDetails || user?.risk_section_scores == null) return
+    setRiskDetails({
+      section_scores: user.risk_section_scores,
+      bands: user.risk_bands,
+      prudence_applied: user.risk_prudence_applied,
+      knowledge_level: user.risk_knowledge_level,
+    })
+  }, [user?.risk_score, user?.risk_section_scores, user?.risk_bands, user?.risk_prudence_applied, user?.risk_knowledge_level, riskDetails])
 
   // Load portfolio data for Radar 2 on mount (when user already has a risk score)
   useEffect(() => {
@@ -505,6 +579,18 @@ function AIAdvisorInner() {
       .catch((err) => setPortfolioError(err.message))
       .finally(() => setPortfolioLoading(false))
   }, [user?.risk_score])
+
+  // Load the suggested starter portfolio once we know the user has no holdings
+  useEffect(() => {
+    if (!user?.risk_score || portfolioLoading) return
+    if (portfolioHoldings && portfolioHoldings.length > 0) return
+    setSuggestionsLoading(true)
+    setSuggestionsError('')
+    getPortfolioSuggestions()
+      .then(setSuggestionsData)
+      .catch((err) => setSuggestionsError(err.message))
+      .finally(() => setSuggestionsLoading(false))
+  }, [user?.risk_score, portfolioLoading, portfolioHoldings])
 
   function setAnswer(key, val) {
     setAnswers((prev) => ({ ...prev, [key]: val }))
@@ -829,6 +915,37 @@ function AIAdvisorInner() {
               </p>
             )}
           </Card>
+
+          {/* -------------------------------------------------------------- */}
+          {/* Suggested Starter Portfolio — only shown when the user has no   */}
+          {/* holdings yet (model portfolio matched to their risk band)       */}
+          {/* -------------------------------------------------------------- */}
+          {!portfolioLoading && (!portfolioHoldings || portfolioHoldings.length === 0) && (
+            <Card className="ring-0 border-0 dark:bg-gray-900">
+              <Title>{t('advisor.suggestedPortfolioTitle')}</Title>
+              <Text className="text-gray-400 text-sm mt-1">
+                {t('advisor.suggestedPortfolioDesc')}
+              </Text>
+
+              {suggestionsLoading && (
+                <p className="mt-4 text-sm text-gray-400 animate-pulse">{t('advisor.suggestedPortfolioLoading')}</p>
+              )}
+              {!suggestionsLoading && suggestionsError && (
+                <p className="mt-4 text-sm text-amber-600 dark:text-amber-400">
+                  {t('advisor.suggestedPortfolioError')}: {suggestionsError}
+                </p>
+              )}
+              {!suggestionsLoading && !suggestionsError && suggestionsData && (
+                <div className="mt-4 space-y-6">
+                  <SuggestedPortfolioChart allocation={suggestionsData.allocation} />
+                  <SuggestedPortfolioLegend allocation={suggestionsData.allocation} />
+                  <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                    {suggestionsData.explanation}
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* -------------------------------------------------------------- */}
           {/* Advice history                                                  */}

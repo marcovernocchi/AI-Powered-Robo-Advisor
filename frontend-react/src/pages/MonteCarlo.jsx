@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AreaChart } from '@tremor/react'
 import { runMonteCarlo, getPortfolio, getPortfolioById, getPortfolioList } from '../api/client'
 import { useLang } from '../context/LangContext'
+import NumberInput from '../components/NumberInput'
 
 function fmt(value, decimals = 2) {
   if (value === null || value === undefined) return '—'
@@ -280,16 +281,15 @@ export default function MonteCarlo() {
                       className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100 font-mono uppercase"
                       required
                     />
-                    <input
-                      type="number"
+                    <NumberInput
                       placeholder="%"
                       value={a.weight}
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      onChange={(e) => updateAsset(i, 'weight', e.target.value)}
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      fallback={0}
+                      onChange={(v) => updateAsset(i, 'weight', v)}
                       className="w-16 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100"
-                      required
                     />
                     {assets.length > 1 && (
                       <button
@@ -303,22 +303,25 @@ export default function MonteCarlo() {
                   </div>
                   {/* Per-asset manual overrides — aligned to ticker+weight+× row */}
                   <div className="flex gap-2 items-center">
-                    <input
-                      type="number"
+                    <NumberInput
                       placeholder={mc('overrideReturnPlaceholder')}
                       value={a.overrideReturn}
-                      step="0.1"
-                      onChange={(e) => updateAsset(i, 'overrideReturn', e.target.value)}
+                      step={0.1}
+                      min={-99}
+                      max={999}
+                      optional
+                      onChange={(v) => updateAsset(i, 'overrideReturn', v)}
                       className="flex-1 px-2 py-1.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-amber-400 placeholder:text-gray-300 dark:placeholder:text-gray-600"
                       title={mc('overrideReturnTitle')}
                     />
-                    <input
-                      type="number"
+                    <NumberInput
                       placeholder={mc('overrideVolPlaceholder')}
                       value={a.overrideVol}
-                      step="0.1"
-                      min="0"
-                      onChange={(e) => updateAsset(i, 'overrideVol', e.target.value)}
+                      step={0.1}
+                      min={0}
+                      max={200}
+                      optional
+                      onChange={(v) => updateAsset(i, 'overrideVol', v)}
                       className="w-16 px-2 py-1.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-amber-400 placeholder:text-gray-300 dark:placeholder:text-gray-600"
                       title={mc('overrideVolTitle')}
                     />
@@ -351,33 +354,34 @@ export default function MonteCarlo() {
 
               <div>
                 <label className={labelClass}>{mc('capital')}</label>
-                <input type="number" value={capital} onChange={(e) => setCapital(e.target.value)} min="100" step="100" className={inputClass} required />
+                <NumberInput value={capital} onChange={setCapital} min={1} max={10000000} step={100} fallback={10000} className={inputClass} />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className={labelClass}>{mc('horizonYears')}</label>
-                  <input type="number" value={horizonYears} onChange={(e) => setHorizonYears(e.target.value)} min="1" max="50" step="1" className={inputClass} required />
+                  <NumberInput value={horizonYears} onChange={setHorizonYears} min={1} max={50} step={1} fallback={10} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>{mc('nSimulations')}</label>
-                  <input type="number" value={nSimulations} onChange={(e) => setNSimulations(e.target.value)} min="10" max="10000" step="100" className={inputClass} required />
+                  <NumberInput value={nSimulations} onChange={setNSimulations} min={100} max={10000} step={100} fallback={1000} className={inputClass} />
                 </div>
               </div>
 
               <div>
                 <label className={labelClass}>{mc('monthlyContrib')}</label>
-                <input type="number" value={monthlyContrib} onChange={(e) => setMonthlyContrib(e.target.value)} min="0" step="50" className={inputClass} />
+                <NumberInput value={monthlyContrib} onChange={setMonthlyContrib} min={0} max={100000} step={50} fallback={0} className={inputClass} />
               </div>
 
               <div>
                 <label className={labelClass}>{mc('targetValue')}</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={targetValue}
-                  onChange={(e) => setTargetValue(e.target.value)}
-                  min="0"
-                  step="1000"
+                  onChange={setTargetValue}
+                  min={0}
+                  max={100000000}
+                  step={1000}
+                  optional
                   placeholder={mc('targetValuePlaceholder')}
                   className={inputClass}
                 />
@@ -385,7 +389,7 @@ export default function MonteCarlo() {
 
               <div>
                 <label className={labelClass}>{mc('lookbackYears')}</label>
-                <input type="number" value={lookbackYears} onChange={(e) => setLookbackYears(e.target.value)} min="1" max="20" step="1" className={inputClass} />
+                <NumberInput value={lookbackYears} onChange={setLookbackYears} min={1} max={20} step={1} fallback={5} className={inputClass} />
               </div>
 
               {/* Shrinkage section */}
@@ -415,12 +419,13 @@ export default function MonteCarlo() {
                 <div>
                   <label className={labelClass}>{mc('longRunReturn')}</label>
                   <div className="relative">
-                    <input
-                      type="number"
+                    <NumberInput
                       value={longRunReturn}
-                      onChange={(e) => setLongRunReturn(e.target.value)}
-                      step="0.5"
-                      min="-99"
+                      onChange={setLongRunReturn}
+                      step={0.5}
+                      min={-50}
+                      max={100}
+                      fallback={7}
                       className={inputClass + ' pr-7'}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>

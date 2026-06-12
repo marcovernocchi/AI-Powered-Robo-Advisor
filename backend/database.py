@@ -32,6 +32,14 @@ def migrate_db():
             conn.execute(text("ALTER TABLE users ADD COLUMN country VARCHAR NOT NULL DEFAULT 'US'"))
         if 'display_currency' not in columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN display_currency VARCHAR NOT NULL DEFAULT 'USD'"))
+        if 'risk_section_scores' not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN risk_section_scores JSON"))
+        if 'risk_bands' not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN risk_bands JSON"))
+        if 'risk_prudence_applied' not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN risk_prudence_applied BOOLEAN"))
+        if 'risk_knowledge_level' not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN risk_knowledge_level VARCHAR"))
         result2 = conn.execute(text("PRAGMA table_info(portfolios)"))
         pcols = {row[1] for row in result2}
         if 'include_in_aggregated' not in pcols:

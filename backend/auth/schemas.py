@@ -29,6 +29,10 @@ class UserOut(BaseModel):
     email: str
     name: str
     risk_score: Optional[int]
+    risk_section_scores: Optional[dict] = None
+    risk_bands: Optional[dict] = None
+    risk_prudence_applied: Optional[bool] = None
+    risk_knowledge_level: Optional[str] = None
     country: str = 'US'
     display_currency: str = 'USD'
 
