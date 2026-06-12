@@ -53,6 +53,10 @@ def set_risk_profile(
     result = calculate_risk_score(answers)
     score = result["total"]
     current_user.risk_score = score
+    current_user.risk_section_scores = result["section_scores"]
+    current_user.risk_bands = result["bands"]
+    current_user.risk_prudence_applied = result["prudence_applied"]
+    current_user.risk_knowledge_level = result["knowledge_level"]
     db.commit()
     return {
         "risk_score": score,

@@ -12,10 +12,134 @@ from backend.db.models import User, Portfolio, Holding, OptimizationResult
 from backend.auth.router import get_current_user
 from backend.services.market_data import get_multiple_prices, get_price_history
 from backend.services.currency import get_ticker_currency, convert
+from backend.services.llm_advisor import generate_portfolio_suggestion_explanation
 from backend.models.optimizer import optimize_portfolio
 from backend.models.bl_optimizer import optimize_black_litterman
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
+
+
+# ---------------------------------------------------------------------------
+# Model portfolios — fixed allocations per risk band (GET /portfolio/suggestions)
+# ---------------------------------------------------------------------------
+
+# (ticker, weight) pairs per risk band. "cash" is a sentinel, not a yfinance ticker.
+MODEL_PORTFOLIOS: dict[str, list[tuple[str, float]]] = {
+    "defensive": [
+        ("cash", 0.05),
+        ("AGGH.SW", 0.30),
+        ("IBGS.SW", 0.25),
+        ("IEAC.L", 0.15),
+        ("IWDA.L", 0.15),
+        ("SGLD.L", 0.10),
+    ],
+    "conservative": [
+        ("cash", 0.05),
+        ("AGGH.SW", 0.25),
+        ("IEAC.L", 0.15),
+        ("IWDA.L", 0.25),
+        ("CSPX.L", 0.15),
+        ("IBGS.SW", 0.10),
+        ("SGLD.L", 0.05),
+    ],
+    "balanced": [
+        ("cash", 0.05),
+        ("IWDA.L", 0.30),
+        ("CSPX.L", 0.20),
+        ("EIMI.L", 0.10),
+        ("AGGH.SW", 0.15),
+        ("IEAC.L", 0.10),
+        ("EXSA.DE", 0.05),
+        ("SGLD.L", 0.05),
+    ],
+    "aggressive": [
+        ("cash", 0.05),
+        ("IWDA.L", 0.25),
+        ("CSPX.L", 0.25),
+        ("EIMI.L", 0.20),
+        ("XUTC.MI", 0.15),
+        ("EXSA.DE", 0.05),
+        ("SGLD.L", 0.05),
+    ],
+}
+
+ASSET_NAMES: dict[str, str] = {
+    "AGGH.SW": "iShares Core Global Aggregate Bond (CHF Hedged)",
+    "IBGS.SW": "iShares Core Global Govt Bond 0-1yr",
+    "IEAC.L": "iShares Core EUR Corporate Bond",
+    "IWDA.L": "iShares Core MSCI World",
+    "CSPX.L": "iShares Core S&P 500",
+    "EIMI.L": "iShares Core MSCI EM IMI",
+    "EXSA.DE": "iShares Core MSCI Europe",
+    "XUTC.MI": "Xtrackers MSCI USA Information Technology",
+    "SGLD.L": "iShares Physical Gold ETC",
+}
+
+ASSET_CLASSES: dict[str, str] = {
+    "AGGH.SW": "bond_global",
+    "IBGS.SW": "bond_govt_short",
+    "IEAC.L": "bond_corporate",
+    "IWDA.L": "equity_global",
+    "CSPX.L": "equity_us",
+    "EIMI.L": "equity_emerging",
+    "EXSA.DE": "equity_europe",
+    "XUTC.MI": "equity_tech",
+    "SGLD.L": "gold",
+}
+
+RISK_BAND_LABELS: dict[str, str] = {
+    "defensive": "Defensive",
+    "conservative": "Conservative",
+    "balanced": "Balanced",
+    "aggressive": "Aggressive",
+}
+
+FALLBACK_EXPLANATIONS: dict[str, str] = {
+    "defensive": (
+        "This defensive allocation puts the large majority of the portfolio into "
+        "government and global bonds, with a small cash buffer for stability. "
+        "The modest exposure to global equities offers some long-term growth "
+        "without taking on too much short-term volatility. A small position in "
+        "gold helps cushion the portfolio during market stress. Overall, this "
+        "mix prioritises capital preservation over growth, matching a defensive "
+        "risk profile."
+    ),
+    "conservative": (
+        "This conservative allocation balances bonds and cash with a moderate "
+        "exposure to global and US equities. Government and corporate bonds "
+        "provide stability, while the equity portion offers room for gradual "
+        "growth over time. A small position in gold adds further "
+        "diversification. This mix suits an investor who wants steady, "
+        "lower-volatility growth while still limiting downside risk."
+    ),
+    "balanced": (
+        "This balanced allocation splits the portfolio between growth-oriented "
+        "equities and stabilising assets such as bonds, cash, and gold. Global, "
+        "US, and emerging market equities provide diversified growth potential, "
+        "while bonds and cash help smooth out market swings along the way. "
+        "This mix suits an investor who is comfortable with moderate "
+        "fluctuations in exchange for higher long-term return potential."
+    ),
+    "aggressive": (
+        "This aggressive allocation is heavily weighted towards equities, "
+        "including global, US, emerging market, and technology stocks, which "
+        "offer the highest long-term growth potential but also the largest "
+        "swings in value. Smaller positions in European equities, gold, and "
+        "cash provide a degree of diversification. This mix suits an investor "
+        "with a long time horizon who can tolerate significant short-term "
+        "volatility in pursuit of higher returns."
+    ),
+}
+
+
+def _risk_band(score: int) -> str:
+    if score <= 26:
+        return "defensive"
+    if score <= 42:
+        return "conservative"
+    if score <= 56:
+        return "balanced"
+    return "aggressive"
 
 
 class HoldingIn(BaseModel):
@@ -274,6 +398,50 @@ def optimize_aggregated(
     db.commit()
 
     return result
+
+
+# Must come before /{portfolio_id} routes — "suggestions" would otherwise be parsed as portfolio_id
+@router.get("/suggestions")
+def portfolio_suggestions(current_user: User = Depends(get_current_user)):
+    """Proposes a fixed model portfolio based on the user's MiFID II risk score, with an AI-generated explanation."""
+    if current_user.risk_score is None:
+        raise HTTPException(status_code=400, detail="Complete the risk questionnaire first")
+
+    risk_score = current_user.risk_score
+    band = _risk_band(risk_score)
+
+    allocation = []
+    for ticker, weight in MODEL_PORTFOLIOS[band]:
+        if ticker == "cash":
+            allocation.append({
+                "ticker": None,
+                "asset_name": "Cash / Liquidity",
+                "asset_class": "cash",
+                "weight": weight,
+            })
+        else:
+            allocation.append({
+                "ticker": ticker,
+                "asset_name": ASSET_NAMES[ticker],
+                "asset_class": ASSET_CLASSES[ticker],
+                "weight": weight,
+            })
+
+    try:
+        explanation = generate_portfolio_suggestion_explanation(
+            risk_score=risk_score,
+            risk_band_label=RISK_BAND_LABELS[band],
+            allocation=[{"asset_class": a["asset_class"], "weight": a["weight"]} for a in allocation],
+        )
+    except Exception:
+        explanation = FALLBACK_EXPLANATIONS[band]
+
+    return {
+        "risk_band": band,
+        "risk_score": risk_score,
+        "allocation": allocation,
+        "explanation": explanation,
+    }
 
 
 # ---------------------------------------------------------------------------
