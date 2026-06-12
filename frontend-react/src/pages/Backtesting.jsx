@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AreaChart, LineChart } from '@tremor/react'
 import { runBacktest, getPortfolio, getPortfolioById, getPortfolioList } from '../api/client'
 import { useLang } from '../context/LangContext'
+import NumberInput from '../components/NumberInput'
 
 const REBALANCE_OPTIONS = [
   { value: 'none', labelKey: 'rebalanceNone' },
@@ -30,6 +31,46 @@ function makeCompactFormatter(lang) {
     if (abs >= 1e3) return `${(v / 1e3).toFixed(2)}K€`
     return `${v.toFixed(0)}€`
   }
+}
+
+const SERIES_COLORS = {
+  Portfolio: { dot: '#10b981', text: 'text-emerald-500' },
+  Benchmark: { dot: '#3b82f6', text: 'text-blue-500' },
+}
+
+function BacktestTooltip({ payload, active, label }) {
+  if (!active || !payload || payload.length === 0) return null
+  return (
+    <div
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg px-3 py-2.5 min-w-[160px]"
+      style={{ pointerEvents: 'none' }}
+    >
+      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 border-b border-gray-100 dark:border-gray-800 pb-1">
+        {label}
+      </p>
+      {payload.map((entry) => {
+        const cfg = SERIES_COLORS[entry.name] ?? {}
+        return (
+          <div key={entry.name} className="flex items-center justify-between gap-4 py-0.5">
+            <span className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: cfg.dot ?? entry.color }}
+              />
+              {entry.name}
+            </span>
+            <span className={`text-xs font-semibold tabular-nums ${cfg.text ?? ''}`}>
+              {typeof entry.value === 'number'
+                ? entry.value >= 1000
+                  ? `${(entry.value / 1000).toFixed(2)}K€`
+                  : `${entry.value.toFixed(0)}€`
+                : entry.value}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function MetricCard({ label, value, highlight }) {
@@ -289,16 +330,15 @@ export default function Backtesting() {
                     className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100 font-mono uppercase"
                     required
                   />
-                  <input
-                    type="number"
+                  <NumberInput
                     placeholder="%"
                     value={a.weight}
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    onChange={(e) => updateAsset(i, 'weight', e.target.value)}
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    fallback={0}
+                    onChange={(v) => updateAsset(i, 'weight', v)}
                     className="w-16 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100"
-                    required
                   />
                   {assets.length > 1 && (
                     <button
@@ -336,7 +376,7 @@ export default function Backtesting() {
 
               <div>
                 <label className={labelClass}>{bt('capital')}</label>
-                <input type="number" value={capital} onChange={(e) => setCapital(e.target.value)} min="100" step="100" className={inputClass} required />
+                <NumberInput value={capital} onChange={setCapital} min={1} max={10000000} step={100} fallback={10000} className={inputClass} />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -362,22 +402,22 @@ export default function Backtesting() {
               {rebalance === 'drift' && (
                 <div>
                   <label className={labelClass}>{bt('driftThreshold')}</label>
-                  <input type="number" value={driftThreshold} onChange={(e) => setDriftThreshold(e.target.value)} min="0.1" max="50" step="0.1" className={inputClass} />
+                  <NumberInput value={driftThreshold} onChange={setDriftThreshold} min={0.1} max={50} step={0.1} fallback={5} className={inputClass} />
                 </div>
               )}
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className={labelClass}>Tx cost<br />(bps)</label>
-                  <input type="number" value={txCost} onChange={(e) => setTxCost(e.target.value)} min="0" step="1" className={inputClass} />
+                  <NumberInput value={txCost} onChange={setTxCost} min={0} max={500} step={1} fallback={0} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Annual TER<br />(bps)</label>
-                  <input type="number" value={ter} onChange={(e) => setTer(e.target.value)} min="0" step="1" className={inputClass} />
+                  <NumberInput value={ter} onChange={setTer} min={0} max={500} step={1} fallback={0} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Spread<br />(bps)</label>
-                  <input type="number" value={spread} onChange={(e) => setSpread(e.target.value)} min="0" step="1" className={inputClass} />
+                  <NumberInput value={spread} onChange={setSpread} min={0} max={500} step={1} fallback={0} className={inputClass} />
                 </div>
               </div>
 
@@ -452,6 +492,7 @@ export default function Backtesting() {
                     showYAxis
                     yAxisWidth={58}
                     curveType="linear"
+                    customTooltip={BacktestTooltip}
                   />
                 )}
               </div>
