@@ -682,7 +682,9 @@ function AIAdvisorInner() {
       const updated = await getAdviceHistory()
       setHistory(updated)
     } catch (err) {
-      setAdviceError(err.message)
+      if (err.message === 'llm_rate_limit') setAdviceError(t('advisor.llmRateLimitError'))
+      else if (err.message === 'llm_unavailable') setAdviceError(t('advisor.llmUnavailableError'))
+      else setAdviceError(err.message)
     } finally {
       setAdviceLoading(false)
     }

@@ -6,7 +6,7 @@ from backend.database import get_db
 from backend.db.models import User, Portfolio, Advice
 from backend.auth.router import get_current_user
 from backend.services.market_data import get_multiple_prices
-from backend.services.llm_advisor import generate_advice
+from backend.services.llm_advisor import generate_advice, LLMServiceError
 
 router = APIRouter(prefix="/advice", tags=["advice"])
 
@@ -39,7 +39,10 @@ def get_advice(current_user: User = Depends(get_current_user), db: Session = Dep
                 "allocation_pct": round(value / total * 100, 1) if total > 0 else 0,
             }
 
-    content = generate_advice(portfolio_summary, current_user.risk_score)
+    try:
+        content = generate_advice(portfolio_summary, current_user.risk_score)
+    except LLMServiceError as exc:
+        raise HTTPException(status_code=503, detail=exc.code) from exc
     content_str = json.dumps(content)   # serialise dict → TEXT for DB storage
 
     db.add(Advice(user_id=current_user.id, content=content_str))

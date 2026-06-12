@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -13,7 +13,7 @@ from backend.api.backtesting import router as backtesting_router
 from backend.api.monte_carlo import router as monte_carlo_router
 from pydantic import BaseModel as _BaseModel
 from backend.models.risk import RiskQuestion, calculate_risk_score, risk_label
-from backend.services.llm_advisor import generate_risk_explanation
+from backend.services.llm_advisor import generate_risk_explanation, LLMServiceError
 
 app = FastAPI(title="AI Robo-Advisor API", version="1.0.0")
 
@@ -83,11 +83,14 @@ def explain_risk_profile(
 ):
     """Calls the LLM to generate a plain-language explanation of the user's MiFID II profile.
     Only real scoring data is passed; the model is instructed not to invent numbers."""
-    explanation = generate_risk_explanation(
-        risk_score=data.risk_score,
-        section_scores=data.section_scores,
-        bands=data.bands,
-        prudence_applied=data.prudence_applied,
-        knowledge_level=data.knowledge_level,
-    )
+    try:
+        explanation = generate_risk_explanation(
+            risk_score=data.risk_score,
+            section_scores=data.section_scores,
+            bands=data.bands,
+            prudence_applied=data.prudence_applied,
+            knowledge_level=data.knowledge_level,
+        )
+    except LLMServiceError as exc:
+        raise HTTPException(status_code=503, detail=exc.code) from exc
     return {"explanation": explanation}

@@ -1,10 +1,24 @@
 import json
 import re
 
+import groq
 from groq import Groq
 from backend.config import settings
 
 _client = None
+
+
+class LLMServiceError(Exception):
+    """Raised when the LLM provider call fails (rate limit, connection, auth, etc.).
+
+    `code` is a stable identifier (e.g. "llm_rate_limit") that the API layer
+    forwards to the frontend in the response `detail`, so the UI can show a
+    message localized to the user's selected language instead of a generic 500.
+    """
+
+    def __init__(self, code: str, message: str):
+        self.code = code
+        super().__init__(message)
 
 
 def _get_client() -> Groq:
@@ -12,6 +26,22 @@ def _get_client() -> Groq:
     if _client is None:
         _client = Groq(api_key=settings.groq_api_key)
     return _client
+
+
+def _call_chat_completion(**kwargs):
+    """Wrap a Groq chat completion call, translating provider errors into LLMServiceError."""
+    try:
+        return _get_client().chat.completions.create(**kwargs)
+    except groq.RateLimitError as exc:
+        raise LLMServiceError(
+            "llm_rate_limit",
+            "The AI advice service has reached its daily usage limit. Please try again later.",
+        ) from exc
+    except groq.GroqError as exc:
+        raise LLMServiceError(
+            "llm_unavailable",
+            "The AI advice service is temporarily unavailable. Please try again later.",
+        ) from exc
 
 
 def _risk_label(score: int) -> str:
@@ -87,7 +117,7 @@ For referenced_weights: list ONLY tickers from the portfolio above whose allocat
 explicitly reference in assessment or suggestions. Copy the exact allocation_pct values from
 the data — do NOT invent or round differently. If you reference no specific weights, return []."""
 
-    response = _get_client().chat.completions.create(
+    response = _call_chat_completion(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=600,
@@ -193,7 +223,7 @@ Write exactly 2 paragraphs (4–5 sentences each):
 
 Plain English only. No bullet points. No invented numbers. End the second paragraph with one sentence reminding the reader this is educational content, not personalised financial advice."""
 
-    response = _get_client().chat.completions.create(
+    response = _call_chat_completion(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=420,
@@ -235,7 +265,7 @@ Proposed model portfolio allocation:
 Write a short explanation (3-5 sentences) of WHY this allocation suits a {risk_band_label} investor.
 Use plain, simple language. Do NOT invent any numbers or percentages other than the ones given above."""
 
-    response = _get_client().chat.completions.create(
+    response = _call_chat_completion(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=300,
