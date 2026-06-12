@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { updateHolding } from '../api/client'
 import { useLang } from '../context/LangContext'
+import NumberInput from './NumberInput'
 
 export default function EditHoldingModal({ holding, onClose, onSaved }) {
   const { t } = useLang()
@@ -53,17 +54,11 @@ export default function EditHoldingModal({ holding, onClose, onSaved }) {
         <form onSubmit={submit} className="px-6 pb-6 space-y-4">
           <div>
             <label className={labelClass}>{t('modal.quantity')}</label>
-            <input
-              type="number" value={shares} onChange={(e) => setShares(e.target.value)}
-              min="0" step="any" required className={fieldClass}
-            />
+            <NumberInput value={shares} onChange={setShares} min={0.000001} max={1000000} step="any" fallback={1} className={fieldClass} />
           </div>
           <div>
             <label className={labelClass}>{t('modal.purchasePrice')}</label>
-            <input
-              type="number" value={price} onChange={(e) => setPrice(e.target.value)}
-              min="0" step="any" required className={fieldClass}
-            />
+            <NumberInput value={price} onChange={setPrice} min={0.0001} max={1000000} step="any" fallback={0} className={fieldClass} />
           </div>
           <div>
             <label className={labelClass}>{t('modal.transactionDate')}</label>
@@ -76,10 +71,7 @@ export default function EditHoldingModal({ holding, onClose, onSaved }) {
           </div>
           <div>
             <label className={labelClass}>{t('modal.fees')} <span className="text-gray-300 dark:text-gray-600">{t('modal.optional')}</span></label>
-            <input
-              type="number" value={fees} onChange={(e) => setFees(e.target.value)}
-              min="0" step="any" className={fieldClass}
-            />
+            <NumberInput value={fees} onChange={setFees} min={0} max={10000} step="any" fallback={0} className={fieldClass} />
           </div>
           <div>
             <label className={labelClass}>{t('modal.description')} <span className="text-gray-300 dark:text-gray-600">{t('modal.optional')}</span></label>
