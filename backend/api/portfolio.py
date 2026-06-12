@@ -658,6 +658,41 @@ def export_pdf(
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}") from exc
 
 
+def _compute_historical_metrics(rows: list[dict], years: int = 3):
+    """Buy-and-hold backtest over the last `years` years; returns PerformanceMetrics or None."""
+    try:
+        from backend.backtesting.data_loader import load_prices
+        from backend.backtesting.metrics import compute_metrics
+        from datetime import timedelta
+
+        total_val = sum(r["value"] for r in rows if r["value"])
+        if total_val <= 0:
+            return None
+
+        weights = {r["ticker"]: r["value"] / total_val for r in rows if r["value"]}
+        end_date = date_type.today()
+        start_date = date_type(end_date.year - years, end_date.month, end_date.day)
+
+        prices, _ = load_prices(list(weights.keys()), start_date, end_date)
+        if prices.empty or len(prices) < 20:
+            return None
+
+        # Drop tickers with no data and renormalise weights
+        available = [t for t in weights if t in prices.columns]
+        if not available:
+            return None
+        w_sum = sum(weights[t] for t in available)
+        adj = {t: weights[t] / w_sum for t in available}
+
+        norm = prices[available] / prices[available].iloc[0]
+        portfolio_values = sum(adj[t] * norm[t] for t in available) * 1000.0
+        portfolio_values.index = pd.to_datetime(portfolio_values.index)
+
+        return compute_metrics(portfolio_values)
+    except Exception:
+        return None
+
+
 def _generate_pdf(current_user: User, db):
     from fpdf import FPDF
 
@@ -669,87 +704,167 @@ def _generate_pdf(current_user: User, db):
     today = date_type.today().strftime("%d %B %Y")
     username = _safe(current_user.name or current_user.email)
 
-    pdf = FPDF()
+    # Compute historical backtest metrics (best-effort; None if data unavailable)
+    hist_metrics = _compute_historical_metrics(rows, years=3)
+
+    pdf = FPDF(orientation="L", unit="mm", format="A4")   # landscape: 297 x 210 mm
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_margins(15, 15, 15)
+    PAGE_W = 267  # usable width: 297 - 2*15 margins
 
-    # ── Header ────────────────────────────────────────────────────────────────
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "Portfolio Report", ln=True, align="C")
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 6, f"User: {username}   |   Date: {today}", ln=True, align="C")
-    pdf.ln(6)
-
-    # ── Holdings table ────────────────────────────────────────────────────────
-    pdf.set_font("Helvetica", "B", 9)
-    col_widths = [18, 38, 16, 16, 20, 20, 18, 18, 22]
-    headers_pdf = ["Ticker", "Name", "Type", "Shares", f"Avg Buy\n({display_currency})",
-                   f"Curr Price\n({display_currency})", f"Value\n({display_currency})",
-                   "P&L %", "Weight %"]
-    # Draw table header
+    # ── Header bar ────────────────────────────────────────────────────────────
     pdf.set_fill_color(30, 58, 95)
     pdf.set_text_color(255, 255, 255)
-    for i, (h, w) in enumerate(zip(headers_pdf, col_widths)):
-        pdf.multi_cell(w, 8, h, border=1, align="C", fill=True,
-                       new_x="RIGHT" if i < len(headers_pdf) - 1 else "LMARGIN",
-                       new_y="TOP" if i < len(headers_pdf) - 1 else "NEXT")
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Helvetica", "", 8)
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.cell(PAGE_W, 12, "  Portfolio Report", ln=False, align="L", fill=True)
+    pdf.ln(12)
+    pdf.set_fill_color(245, 247, 250)
+    pdf.set_text_color(80, 80, 80)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(PAGE_W, 7, f"  Investor: {username}   |   Generated: {today}   |   Currency: {display_currency}",
+             ln=True, align="L", fill=True)
+    pdf.ln(5)
 
-    for i, r in enumerate(rows):
-        fill = i % 2 == 0
-        pdf.set_fill_color(240, 244, 252) if fill else pdf.set_fill_color(255, 255, 255)
-        pnl_color = (0, 150, 80) if (r["pnl_pct"] or 0) >= 0 else (200, 0, 0)
-        values = [
-            _safe(r["ticker"]),
-            _safe(r["asset_name"] or "", maxlen=20),
-            _safe(r["asset_type"] or ""),
-            f"{r['shares']:.2f}",
-            f"{r['avg_buy_price']:.2f}" if r["avg_buy_price"] is not None else "N/A",
-            f"{r['current_price']:.2f}" if r["current_price"] is not None else "N/A",
-            f"{r['value']:,.2f}" if r["value"] is not None else "N/A",
-            f"{r['pnl_pct']:+.2f}%" if r["pnl_pct"] is not None else "N/A",
-            f"{r['weight_pct']:.2f}%" if r["weight_pct"] is not None else "N/A",
-        ]
-        row_h = 6
-        for j, (val, w) in enumerate(zip(values, col_widths)):
-            if j == 7:  # P&L % — colour coded
-                pdf.set_text_color(*pnl_color)
-            else:
-                pdf.set_text_color(0, 0, 0)
-            is_last = j == len(values) - 1
-            pdf.multi_cell(w, row_h, val, border=1, align="C", fill=fill,
-                           new_x="RIGHT" if not is_last else "LMARGIN",
-                           new_y="TOP" if not is_last else "NEXT")
+    # ── Holdings table ────────────────────────────────────────────────────────
+    # Column widths sum to 263 (fits within 267mm usable)
+    col_widths  = [30,  58,  18,  18,  26,  26,  28,  18,  21]
+    col_aligns  = ["L", "L", "C", "R", "R", "R", "R", "C", "R"]
+    headers_pdf = [
+        "Ticker", "Name", "Type", "Shares",
+        f"Avg Buy ({display_currency})",
+        f"Curr Price ({display_currency})",
+        f"Value ({display_currency})",
+        "P&L %", "Weight %",
+    ]
+
+    HEADER_BG   = (30, 58, 95)
+    ROW_ODD_BG  = (240, 245, 252)
+    ROW_EVEN_BG = (255, 255, 255)
+    BORDER_COL  = (200, 210, 225)
+
+    def _draw_row(cells, widths, aligns, row_h, bg, text_colors=None):
+        pdf.set_fill_color(*bg)
+        for j, (val, w, al) in enumerate(zip(cells, widths, aligns)):
+            col = text_colors[j] if text_colors else (0, 0, 0)
+            pdf.set_text_color(*col)
+            is_last = j == len(cells) - 1
+            pdf.cell(w, row_h, val, border=1, align=al, fill=True,
+                     new_x="RIGHT" if not is_last else "LMARGIN",
+                     new_y="TOP"   if not is_last else "NEXT")
         pdf.set_text_color(0, 0, 0)
 
-    # ── Summary block ─────────────────────────────────────────────────────────
-    pdf.ln(6)
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "Summary", ln=True)
-    pdf.set_font("Helvetica", "", 10)
-    pnl_sign = "+" if total_pnl >= 0 else ""
-    pdf.cell(0, 6, f"Total Portfolio Value:  {display_currency} {total_value:,.2f}", ln=True)
-    pdf.cell(0, 6, f"Total P&L:              {display_currency} {pnl_sign}{total_pnl:,.2f}", ln=True)
+    # Header row
+    pdf.set_font("Helvetica", "B", 8)
+    _draw_row(headers_pdf, col_widths, ["C"] * len(col_widths), 7,
+              HEADER_BG, [(255, 255, 255)] * len(col_widths))
 
-    if opt_result:
-        pdf.ln(3)
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(0, 6, "Portfolio Metrics  (from last optimization run)", ln=True)
+    # Data rows
+    pdf.set_font("Helvetica", "", 8)
+    for i, r in enumerate(rows):
+        bg = ROW_ODD_BG if i % 2 == 0 else ROW_EVEN_BG
+        pnl_val = r["pnl_pct"] or 0
+        pnl_color = (0, 140, 70) if pnl_val >= 0 else (190, 0, 0)
+        name_truncated = _safe(r["asset_name"] or "", maxlen=28)
+        cells = [
+            _safe(r["ticker"]),
+            name_truncated,
+            _safe(r["asset_type"] or ""),
+            f"{r['shares']:,.2f}",
+            f"{r['avg_buy_price']:,.2f}"  if r["avg_buy_price"]  is not None else "N/A",
+            f"{r['current_price']:,.2f}"  if r["current_price"]  is not None else "N/A",
+            f"{r['value']:,.2f}"          if r["value"]          is not None else "N/A",
+            f"{pnl_val:+.2f}%",
+            f"{r['weight_pct']:.2f}%"     if r["weight_pct"]     is not None else "N/A",
+        ]
+        text_colors = [(0, 0, 0)] * len(cells)
+        text_colors[7] = pnl_color  # P&L column coloured
+        _draw_row(cells, col_widths, col_aligns, 6, bg, text_colors)
+
+    # ── Summary block ─────────────────────────────────────────────────────────
+    pdf.ln(7)
+
+    # Helper: two-column key/value line
+    def _kv(label: str, value: str, bold_val: bool = False):
         pdf.set_font("Helvetica", "", 10)
+        pdf.cell(75, 6, label, ln=False)
+        pdf.set_font("Helvetica", "B" if bold_val else "", 10)
+        pdf.cell(0, 6, value, ln=True)
+
+    def _section_title(title: str):
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(30, 58, 95)
+        pdf.cell(0, 7, title, ln=True)
+        pdf.set_text_color(0, 0, 0)
+
+    # ── Portfolio overview ────────────────────────────────────────────────────
+    _section_title("Portfolio Overview")
+    pnl_sign = "+" if total_pnl >= 0 else ""
+    _kv("Total Value:",  f"{display_currency} {total_value:,.2f}", bold_val=True)
+    _kv("Total P&L:",    f"{display_currency} {pnl_sign}{total_pnl:,.2f}")
+    _kv("Positions:",    str(len(rows)))
+
+    # Top holding by weight
+    if rows:
+        top = max(rows, key=lambda r: r["weight_pct"] or 0)
+        _kv("Largest position:", f"{_safe(top['ticker'])}  ({top['weight_pct']:.2f}%)")
+
+    # Composition by type
+    type_totals: dict = {}
+    for r in rows:
+        t = r["asset_type"] or "other"
+        type_totals[t] = type_totals.get(t, 0) + (r["value"] or 0)
+    if type_totals and total_value > 0:
+        composition = "  |  ".join(
+            f"{k}: {v / total_value * 100:.1f}%"
+            for k, v in sorted(type_totals.items(), key=lambda x: -x[1])
+        )
+        _kv("Composition:", _safe(composition))
+
+    # ── Forward-looking metrics (optimizer) ──────────────────────────────────
+    pdf.ln(3)
+    _section_title("Forward-Looking Metrics  (from last optimization run)")
+    if opt_result:
         if opt_result.expected_annual_return_pct is not None:
-            pdf.cell(0, 6, f"Expected Annual Return:  {opt_result.expected_annual_return_pct:.2f}%", ln=True)
+            _kv("Expected Annual Return:", f"{opt_result.expected_annual_return_pct:.2f}%")
         if opt_result.annual_volatility_pct is not None:
-            pdf.cell(0, 6, f"Annual Volatility:       {opt_result.annual_volatility_pct:.2f}%", ln=True)
+            _kv("Expected Volatility:",    f"{opt_result.annual_volatility_pct:.2f}%")
         if opt_result.sharpe_ratio is not None:
-            pdf.cell(0, 6, f"Sharpe Ratio:            {opt_result.sharpe_ratio:.2f}", ln=True)
+            _kv("Expected Sharpe Ratio:",  f"{opt_result.sharpe_ratio:.2f}")
         opt_date = opt_result.created_at.strftime("%d %b %Y") if opt_result.created_at else "unknown"
         pdf.set_font("Helvetica", "I", 8)
+        pdf.set_text_color(120, 120, 120)
         pdf.cell(0, 5, f"Optimization run on: {opt_date}", ln=True)
+        pdf.set_text_color(0, 0, 0)
     else:
         pdf.set_font("Helvetica", "I", 9)
-        pdf.cell(0, 6, "Portfolio metrics not available — run Optimize in the Portfolio page first.", ln=True)
+        pdf.set_text_color(120, 120, 120)
+        pdf.cell(0, 6, "Not available — run Optimize in the Portfolio page first.", ln=True)
+        pdf.set_text_color(0, 0, 0)
+
+    # ── Historical metrics (3-year buy-and-hold backtest) ────────────────────
+    pdf.ln(3)
+    _section_title("Historical Performance  (3-year buy-and-hold backtest)")
+    if hist_metrics:
+        _kv("Total Return:",         f"{hist_metrics.total_return_pct:+.2f}%")
+        _kv("CAGR:",                 f"{hist_metrics.cagr_pct:+.2f}%")
+        _kv("Ann. Volatility:",      f"{hist_metrics.annualized_volatility_pct:.2f}%")
+        if hist_metrics.sharpe_ratio is not None:
+            _kv("Sharpe Ratio:",     f"{hist_metrics.sharpe_ratio:.2f}")
+        if hist_metrics.sortino_ratio is not None:
+            _kv("Sortino Ratio:",    f"{hist_metrics.sortino_ratio:.2f}")
+        _kv("Max Drawdown:",         f"{hist_metrics.max_drawdown_pct:.2f}%")
+        if hist_metrics.var_95_pct is not None:
+            _kv("VaR 95% (daily):",  f"{hist_metrics.var_95_pct:.2f}%")
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.set_text_color(120, 120, 120)
+        pdf.cell(0, 5, "Based on actual price history (risk-free rate 2%). Does not account for cash flows or fees.", ln=True)
+        pdf.set_text_color(0, 0, 0)
+    else:
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.set_text_color(120, 120, 120)
+        pdf.cell(0, 6, "N/A — insufficient price history (need at least 20 trading days over 3 years).", ln=True)
+        pdf.set_text_color(0, 0, 0)
 
     # ── Disclaimer ────────────────────────────────────────────────────────────
     pdf.ln(8)
