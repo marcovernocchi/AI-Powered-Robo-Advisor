@@ -117,12 +117,14 @@ export default function Backtesting() {
   const totalWeight = assets.reduce((s, a) => s + (parseFloat(a.weight) || 0), 0)
   const weightsOk = Math.abs(totalWeight - 100) < 0.01
   const hasAssetContent = assets.some((a) => a.ticker.trim() || a.weight !== '')
+  const capitalNum = parseFloat(capital)
   const formValid =
     weightsOk &&
-    assets.some((a) => a.ticker.trim()) &&
-    parseFloat(capital) > 0 &&
+    assets.some((a) => a.ticker.trim() && parseFloat(a.weight) > 0) &&
+    !isNaN(capitalNum) && capitalNum > 0 &&
     startDate &&
-    endDate
+    endDate &&
+    startDate < endDate
 
   function addAsset() {
     setAssets([...assets, { ticker: '', weight: '' }])
