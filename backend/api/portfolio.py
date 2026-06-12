@@ -18,6 +18,15 @@ from backend.models.bl_optimizer import optimize_black_litterman
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 
+def _fetch_asset_name(ticker: str) -> str | None:
+    try:
+        import yfinance as yf
+        info = yf.Ticker(ticker).info
+        return info.get("longName") or info.get("shortName") or None
+    except Exception:
+        return None
+
+
 class HoldingIn(BaseModel):
     ticker: str
     asset_name: Optional[str] = None
@@ -48,9 +57,17 @@ class PortfolioUpdate(BaseModel):
     include_in_aggregated: Optional[bool] = None
 
 
-def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
+def _build_holdings_out(holdings, display_currency: str, db=None) -> tuple[list, float]:
     if not holdings:
         return [], 0.0
+    # Backfill missing asset names from yfinance (once per holding, then persisted)
+    if db is not None:
+        for h in holdings:
+            if not h.asset_name:
+                name = _fetch_asset_name(h.ticker)
+                if name:
+                    h.asset_name = name
+        db.commit()
     prices = get_multiple_prices([h.ticker for h in holdings])
     holdings_out = []
     total_value = 0.0
@@ -72,6 +89,7 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
             "id": h.id,
             "portfolio_id": h.portfolio_id,
             "ticker": h.ticker,
+            "asset_name": h.asset_name or "",
             "asset_type": h.asset_type,
             "shares": h.shares,
             "avg_buy_price": h.avg_buy_price,
@@ -233,7 +251,7 @@ def get_portfolio_aggregated(current_user: User = Depends(get_current_user), db:
     ).all()
     display_currency = current_user.display_currency or 'USD'
     all_holdings = [h for p in portfolios for h in p.holdings]
-    holdings_out, total_value = _build_holdings_out(all_holdings, display_currency)
+    holdings_out, total_value = _build_holdings_out(all_holdings, display_currency, db=db)
     return {"holdings": holdings_out, "total_value": total_value, "display_currency": display_currency}
 
 
@@ -604,10 +622,11 @@ def add_holding(
             purchase_date = date_type.fromisoformat(data.purchase_date)
         except ValueError:
             pass
+    asset_name = data.asset_name or _fetch_asset_name(data.ticker.upper())
     holding = Holding(
         portfolio_id=portfolio.id,
         ticker=data.ticker.upper(),
-        asset_name=data.asset_name,
+        asset_name=asset_name,
         asset_type=data.asset_type,
         shares=data.shares,
         avg_buy_price=data.avg_buy_price,
@@ -691,7 +710,7 @@ def get_portfolio_by_id(
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
     display_currency = current_user.display_currency or 'USD'
-    holdings_out, total_value = _build_holdings_out(portfolio.holdings, display_currency)
+    holdings_out, total_value = _build_holdings_out(portfolio.holdings, display_currency, db=db)
     return {
         "id": portfolio.id,
         "name": portfolio.name,
