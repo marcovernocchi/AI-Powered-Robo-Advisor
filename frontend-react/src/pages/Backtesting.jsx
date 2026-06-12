@@ -417,15 +417,15 @@ export default function Backtesting() {
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className={labelClass}>Tx cost<br />(bps)</label>
+                  <label className={labelClass}>{bt('txCost')}</label>
                   <NumberInput value={txCost} onChange={setTxCost} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Annual TER<br />(bps)</label>
+                  <label className={labelClass}>{bt('ter')}</label>
                   <NumberInput value={ter} onChange={setTer} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Spread<br />(bps)</label>
+                  <label className={labelClass}>{bt('spread')}</label>
                   <NumberInput value={spread} onChange={setSpread} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
                 </div>
               </div>

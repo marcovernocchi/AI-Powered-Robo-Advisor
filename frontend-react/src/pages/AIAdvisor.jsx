@@ -106,14 +106,15 @@ function bandFromScore(score) {
 }
 
 function MiFIDRadar({ sectionScores, riskScore }) {
+  const { t } = useLang()
   const band = bandFromScore(riskScore)
   const benchmark = BAND_BENCHMARKS[band]
 
   const data = [
-    { axis: 'Financial Situation (A)', value: Math.round((sectionScores.A / 32) * 100), benchmark },
-    { axis: 'Investment Experience (B)', value: Math.round((sectionScores.B / 12) * 100), benchmark },
-    { axis: 'Risk Attitude (C)', value: Math.round((sectionScores.C / 24) * 100), benchmark },
-    { axis: 'Financial Knowledge (D)', value: Math.round((sectionScores.D / 5) * 100), benchmark },
+    { axis: t('advisor.radarAxisA'), value: Math.round((sectionScores.A / 32) * 100), benchmark },
+    { axis: t('advisor.radarAxisB'), value: Math.round((sectionScores.B / 12) * 100), benchmark },
+    { axis: t('advisor.radarAxisC'), value: Math.round((sectionScores.C / 24) * 100), benchmark },
+    { axis: t('advisor.radarAxisD'), value: Math.round((sectionScores.D / 5) * 100), benchmark },
   ]
 
   return (
@@ -123,14 +124,14 @@ function MiFIDRadar({ sectionScores, riskScore }) {
         <PolarAngleAxis dataKey="axis" tick={{ fontSize: 11, fill: '#6b7280' }} />
         <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
         <Radar
-          name="Your Profile"
+          name={t('advisor.yourProfile')}
           dataKey="value"
           stroke="#3b82f6"
           fill="#3b82f6"
           fillOpacity={0.4}
         />
         <Radar
-          name={`Band ${band} Benchmark`}
+          name={t('advisor.bandBenchmarkLabel', { band })}
           dataKey="benchmark"
           stroke="#10b981"
           fill="#10b981"
@@ -168,6 +169,7 @@ function normBalance(hhi) { return Math.max(0, Math.min(100, (1 - hhi) * 100)) }
 function normDefensive(v) { return Math.max(0, Math.min(100, v)) }
 
 function PortfolioRadar({ currentMetrics, optimizeData, holdings }) {
+  const { t } = useLang()
   // Derive equity share for the recommended portfolio using optimize weights
   // and the asset_type of each holding (same tickers, populated in DB).
   const assetTypeByTicker = {}
@@ -191,32 +193,32 @@ function PortfolioRadar({ currentMetrics, optimizeData, holdings }) {
 
   const data = [
     {
-      axis: 'Expected Return',
+      axis: t('advisor.radarExpectedReturn'),
       recommended: Math.round(normReturn(optimizeData.expected_annual_return_pct)),
       current: Math.round(normReturn(currentMetrics.expected_annual_return_pct)),
     },
     {
-      axis: 'Safety (Low Risk)',
+      axis: t('advisor.radarSafety'),
       recommended: Math.round(normSafety(optimizeData.annual_volatility_pct)),
       current: Math.round(normSafety(currentMetrics.annual_volatility_pct)),
     },
     {
-      axis: 'Diversification',
+      axis: t('advisor.radarDiversification'),
       recommended: Math.round(normDivers(recNEff)),
       current: Math.round(normDivers(currentMetrics.n_effective_assets)),
     },
     {
-      axis: 'Equity Share',
+      axis: t('advisor.radarEquityShare'),
       recommended: Math.round(normEquity(recEquityShare)),
       current: Math.round(normEquity(currentMetrics.equity_share_pct)),
     },
     {
-      axis: 'Balance',
+      axis: t('advisor.radarBalance'),
       recommended: Math.round(normBalance(recHHI)),
       current: Math.round(normBalance(curHHI)),
     },
     {
-      axis: 'Defensive Share',
+      axis: t('advisor.radarDefensiveShare'),
       recommended: Math.round(normDefensive(recDefensiveShare)),
       current: Math.round(normDefensive(currentMetrics.defensive_share_pct)),
     },
@@ -229,14 +231,14 @@ function PortfolioRadar({ currentMetrics, optimizeData, holdings }) {
         <PolarAngleAxis dataKey="axis" tick={{ fontSize: 11, fill: '#6b7280' }} />
         <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
         <Radar
-          name="Recommended"
+          name={t('advisor.radarRecommended')}
           dataKey="recommended"
           stroke="#10b981"
           fill="#10b981"
           fillOpacity={0.35}
         />
         <Radar
-          name="Current"
+          name={t('advisor.radarCurrent')}
           dataKey="current"
           stroke="#3b82f6"
           fill="#3b82f6"
@@ -251,73 +253,65 @@ function PortfolioRadar({ currentMetrics, optimizeData, holdings }) {
 // ---------------------------------------------------------------------------
 // DETERMINISTIC risk score explanation (no LLM — facts from the algorithm)
 // ---------------------------------------------------------------------------
-const BAND_LABELS = {
-  1: 'Band 1 – Low (Defensive)',
-  2: 'Band 2 – Medium (Conservative)',
-  3: 'Band 3 – Medium-High (Balanced)',
-  4: 'Band 4 – High (Aggressive)',
-}
 const BAND_RANGES = { 1: '≤ 26', 2: '27–42', 3: '43–56', 4: '57–68' }
 
 function DeterministicExplanation({ riskScore, riskDetails }) {
+  const { t } = useLang()
   const { section_scores, bands, prudence_applied, knowledge_level } = riskDetails
   const band = bandFromScore(riskScore)
+  const bandLabels = t('advisor.bandLabels')
 
   return (
     <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
       {/* Score breakdown */}
       <div>
-        <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Score breakdown</p>
+        <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{t('advisor.scoreBreakdown')}</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
-          <span>A – Financial Situation (max 32)</span>
+          <span>{t('advisor.axisA')}</span>
           <span className="font-medium">{section_scores.A} pts</span>
-          <span>B – Investment Experience (max 12)</span>
+          <span>{t('advisor.axisB')}</span>
           <span className="font-medium">{section_scores.B} pts</span>
-          <span>C – Risk Attitude (max 24)</span>
+          <span>{t('advisor.axisC')}</span>
           <span className="font-medium">{section_scores.C} pts</span>
-          <span>D – Financial Knowledge (max 5 correct)</span>
+          <span>{t('advisor.axisD')}</span>
           <span className="font-medium">{section_scores.D} correct → {knowledge_level}</span>
         </div>
         <p className="mt-2">
-          Total (A+B+C): <strong>{riskScore}/68</strong> → <strong>{BAND_LABELS[band]}</strong> (threshold: {BAND_RANGES[band]})
+          {t('advisor.totalScore', { score: riskScore, band: bandLabels[band], threshold: BAND_RANGES[band] })}
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-          Section D (Financial Knowledge) does not contribute to the total score; it determines the knowledge level separately.
+          {t('advisor.sectionDNote')}
         </p>
       </div>
 
       {/* Prudence rule */}
       <div>
-        <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Prudence rule (ESMA MiFID II)</p>
+        <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{t('advisor.prudenceRuleTitle')}</p>
         {prudence_applied ? (
           <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-3 py-2">
             <p>
-              <span className="font-medium text-amber-700 dark:text-amber-400">Applied.</span>{' '}
-              Financial Situation (Section A → band {bands.A}) and Risk Attitude (Section C → band {bands.C})
-              diverged by more than one band. Your total score was capped to the upper bound of
-              band {Math.min(bands.A, bands.C)} ({BAND_RANGES[Math.min(bands.A, bands.C)]}).
+              <span className="font-medium text-amber-700 dark:text-amber-400">{t('advisor.prudenceApplied')}</span>{' '}
+              {t('advisor.prudenceAppliedDesc', { bandA: bands.A, bandC: bands.C, capBand: Math.min(bands.A, bands.C), range: BAND_RANGES[Math.min(bands.A, bands.C)] })}
             </p>
           </div>
         ) : (
           <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 px-3 py-2">
             <p>
-              <span className="font-medium text-green-700 dark:text-green-400">Not triggered.</span>{' '}
-              Financial Situation (band {bands.A}) and Risk Attitude (band {bands.C}) are within one
-              band of each other — no cap applied.
+              <span className="font-medium text-green-700 dark:text-green-400">{t('advisor.prudenceNotTriggered')}</span>{' '}
+              {t('advisor.prudenceNotTriggeredDesc', { bandA: bands.A, bandC: bands.C })}
             </p>
           </div>
         )}
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          If Financial Situation and Risk Attitude diverge by more than one band, your total score is
-          capped to the more conservative band (ESMA MiFID II guidelines).
+          {t('advisor.prudenceExplanation')}
         </p>
       </div>
 
       {/* Band legend */}
       <div>
-        <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Risk band legend</p>
+        <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{t('advisor.bandLegendTitle')}</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-xs">
-          {Object.entries(BAND_LABELS).map(([b, label]) => (
+          {Object.entries(bandLabels).map(([b, label]) => (
             <span key={b} className={Number(b) === band ? 'font-semibold text-blue-600 dark:text-blue-400' : ''}>
               {label} (score {BAND_RANGES[b]})
             </span>
@@ -332,6 +326,7 @@ function DeterministicExplanation({ riskScore, riskDetails }) {
 // How to read the portfolio radar — axis legend for Radar 2
 // ---------------------------------------------------------------------------
 function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
+  const { t } = useLang()
   const assetTypeByTicker = {}
   holdings.forEach((h) => { assetTypeByTicker[h.ticker] = h.asset_type })
   const recEquityShare = Object.entries(optimizeData.weights).reduce(
@@ -350,40 +345,40 @@ function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
 
   const rows = [
     {
-      axis: 'Expected Return',
+      axis: t('advisor.radarExpectedReturn'),
       rec: `${optimizeData.expected_annual_return_pct?.toFixed(1) ?? '–'}%`,
       cur: `${currentMetrics.expected_annual_return_pct?.toFixed(1) ?? '–'}%`,
-      note: 'Annualised historical return.',
+      note: t('advisor.radarNoteExpectedReturn'),
     },
     {
-      axis: 'Safety (Low Risk)',
+      axis: t('advisor.radarSafety'),
       rec: `vol ${optimizeData.annual_volatility_pct?.toFixed(1) ?? '–'}%`,
       cur: `vol ${currentMetrics.annual_volatility_pct?.toFixed(1) ?? '–'}%`,
-      note: 'Inverted volatility — lower vol = safer.',
+      note: t('advisor.radarNoteSafety'),
     },
     {
-      axis: 'Diversification',
+      axis: t('advisor.radarDiversification'),
       rec: `${recNEff.toFixed(1)} positions`,
       cur: `${currentMetrics.n_effective_assets?.toFixed(1) ?? '–'} positions`,
-      note: 'Effective number of positions (1/HHI).',
+      note: t('advisor.radarNoteDiversification'),
     },
     {
-      axis: 'Equity Share',
+      axis: t('advisor.radarEquityShare'),
       rec: `${recEquityShare.toFixed(1)}%`,
       cur: `${currentMetrics.equity_share_pct?.toFixed(1) ?? '–'}%`,
-      note: '% of portfolio in equities/ETF.',
+      note: t('advisor.radarNoteEquityShare'),
     },
     {
-      axis: 'Balance',
+      axis: t('advisor.radarBalance'),
       rec: `${Math.round((1 - recHHI) * 100)}/100`,
       cur: `${Math.round((1 - curHHI) * 100)}/100`,
-      note: 'How evenly spread your portfolio is — higher = better balanced.',
+      note: t('advisor.radarNoteBalance'),
     },
     {
-      axis: 'Defensive Share',
+      axis: t('advisor.radarDefensiveShare'),
       rec: `${recDefensiveShare.toFixed(1)}%`,
       cur: `${currentMetrics.defensive_share_pct?.toFixed(1) ?? '–'}%`,
-      note: '% of portfolio in bonds/cash.',
+      note: t('advisor.radarNoteDefensiveShare'),
     },
   ]
 
@@ -394,11 +389,11 @@ function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">{r.axis}</p>
           <div className="flex gap-4">
             <div>
-              <p className="text-[10px] text-gray-400 mb-0.5">Recommended</p>
+              <p className="text-[10px] text-gray-400 mb-0.5">{t('advisor.radarRecommended')}</p>
               <p className="text-sm font-bold text-emerald-500">{r.rec}</p>
             </div>
             <div>
-              <p className="text-[10px] text-gray-400 mb-0.5">Current</p>
+              <p className="text-[10px] text-gray-400 mb-0.5">{t('advisor.radarCurrent')}</p>
               <p className="text-sm font-bold text-blue-500">{r.cur}</p>
             </div>
           </div>
@@ -818,10 +813,9 @@ function AIAdvisorInner() {
         <>
           {/* Radar 1 — MiFID profile */}
           <Card className={cardClass}>
-            <Title>MiFID II Risk Profile — Radar</Title>
+            <Title>{t('advisor.mifidRadarTitle')}</Title>
             <Text className="text-gray-400 text-sm mt-1">
-              Each axis shows your normalised score (0–100) for that section. The dashed grey area
-              is the midpoint benchmark for your risk band.
+              {t('advisor.mifidRadarDesc')}
             </Text>
             <div className="mt-4">
               <MiFIDRadar sectionScores={riskDetails.section_scores} riskScore={user.risk_score} />
@@ -830,22 +824,21 @@ function AIAdvisorInner() {
 
           {/* Deterministic explanation — section: score breakdown + prudence rule */}
           <Card className={cardClass}>
-            <Title>Score Breakdown &amp; Prudence Rule</Title>
+            <Title>{t('advisor.scoreBreakdownTitle')}</Title>
             <Text className="text-gray-400 text-sm mt-1 mb-4">
-              These facts come directly from the scoring algorithm — not from the AI.
+              {t('advisor.scoreBreakdownDesc')}
             </Text>
             <DeterministicExplanation riskScore={user.risk_score} riskDetails={riskDetails} />
           </Card>
 
           {/* LLM explanation — personalised, plain-language */}
           <Card className={cardClass}>
-            <Title>What Your Profile Means</Title>
+            <Title>{t('advisor.whatProfileMeansTitle')}</Title>
             <Text className="text-gray-400 text-sm mt-1">
-              A personalised explanation generated by the AI from your actual scores. The model is
-              instructed not to invent numbers.
+              {t('advisor.whatProfileMeansDesc')}
             </Text>
             {explanationLoading && (
-              <p className="mt-4 text-sm text-gray-400 animate-pulse">Generating explanation…</p>
+              <p className="mt-4 text-sm text-gray-400 animate-pulse">{t('advisor.generatingExplanation')}</p>
             )}
             {!explanationLoading && riskExplanation && (
               <div className="mt-4 rounded-lg bg-gray-50 dark:bg-gray-800 p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
@@ -853,7 +846,7 @@ function AIAdvisorInner() {
               </div>
             )}
             {!explanationLoading && !riskExplanation && (
-              <p className="mt-4 text-sm text-gray-400">No explanation available.</p>
+              <p className="mt-4 text-sm text-gray-400">{t('advisor.noExplanation')}</p>
             )}
           </Card>
         </>
@@ -866,18 +859,17 @@ function AIAdvisorInner() {
       {user?.risk_score && (
         <>
           <Card className={cardClass}>
-            <Title>Portfolio Comparison — Recommended vs Current</Title>
+            <Title>{t('advisor.portfolioComparisonTitle')}</Title>
             <Text className="text-gray-400 text-sm mt-1">
-              Green = recommended (Black-Litterman optimizer). Blue = your current holdings.
-              All axes are normalised 0–100.
+              {t('advisor.portfolioComparisonDesc')}
             </Text>
 
             {portfolioLoading && (
-              <p className="mt-4 text-sm text-gray-400 animate-pulse">Loading portfolio data…</p>
+              <p className="mt-4 text-sm text-gray-400 animate-pulse">{t('advisor.loadingPortfolioData')}</p>
             )}
             {!portfolioLoading && portfolioError && (
               <p className="mt-4 text-sm text-amber-600 dark:text-amber-400">
-                Could not load portfolio data: {portfolioError}
+                {t('advisor.couldNotLoadPortfolio')} {portfolioError}
               </p>
             )}
             {!portfolioLoading && !portfolioError && portfolioMetrics && optimizeData && portfolioHoldings && portfolioHoldings.length > 0 && (
@@ -896,13 +888,12 @@ function AIAdvisorInner() {
             )}
             {!portfolioLoading && !portfolioError && (!portfolioHoldings || portfolioHoldings.length === 0) && (
               <p className="mt-4 text-sm text-gray-400">
-                No holdings found. Add assets to your portfolio to see the comparison.
+                {t('advisor.noHoldingsComparison')}
               </p>
             )}
             {!portfolioLoading && !portfolioError && portfolioHoldings && portfolioHoldings.length > 0 && !optimizeData && (
               <p className="mt-4 text-sm text-gray-400">
-                Recommended portfolio not yet available. Make sure you have at least 2 holdings with
-                sufficient price history to run the optimiser.
+                {t('advisor.optimizerUnavailable')}
               </p>
             )}
           </Card>
