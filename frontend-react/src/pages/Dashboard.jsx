@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { AreaChart, Badge, ProgressBar } from '@tremor/react'
 import { createPortfolio, updatePortfolio, deletePortfolio } from '../api/client'
 import AddTransactionModal from '../components/AddTransactionModal'
@@ -395,7 +395,12 @@ export default function Dashboard() {
                             {h.ticker.slice(0, 2)}
                           </div>
                           <div>
-                            <p className="font-semibold">{h.ticker}</p>
+                            <Link
+                              to={`/market?ticker=${h.ticker}`}
+                              className="font-semibold hover:text-blue-500 transition-colors"
+                            >
+                              {h.ticker}
+                            </Link>
                             {h.asset_name && <p className="text-xs text-gray-400 truncate max-w-[160px]">{h.asset_name}</p>}
                           </div>
                         </div>
