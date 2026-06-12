@@ -134,6 +134,3 @@ export const explainRiskProfile = (data) =>
 
 export const runBacktest = (params) =>
   request('/backtest', { method: 'POST', body: JSON.stringify(params) })
-
-export const runMonteCarlo = (params) =>
-  request('/monte-carlo', { method: 'POST', body: JSON.stringify(params) })

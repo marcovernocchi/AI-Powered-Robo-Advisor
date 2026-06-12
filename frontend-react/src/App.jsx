@@ -10,7 +10,6 @@ import AIAdvisor from './pages/AIAdvisor'
 import Market from './pages/Market'
 import Settings from './pages/Settings'
 import Backtesting from './pages/Backtesting'
-import MonteCarlo from './pages/MonteCarlo'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -58,7 +57,6 @@ export default function App() {
                 <Route path="market" element={<Market />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="backtesting" element={<Backtesting />} />
-                <Route path="monte-carlo" element={<MonteCarlo />} />
               </Route>
             </Routes>
           </BrowserRouter>
