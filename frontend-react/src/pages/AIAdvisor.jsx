@@ -353,49 +353,56 @@ function PortfolioRadarLegend({ currentMetrics, optimizeData, holdings }) {
       axis: 'Expected Return',
       rec: `${optimizeData.expected_annual_return_pct?.toFixed(1) ?? '–'}%`,
       cur: `${currentMetrics.expected_annual_return_pct?.toFixed(1) ?? '–'}%`,
-      note: 'Annualised historical return. Scale: −5% → 0, +25% → 100.',
+      note: 'Annualised historical return.',
     },
     {
       axis: 'Safety (Low Risk)',
       rec: `vol ${optimizeData.annual_volatility_pct?.toFixed(1) ?? '–'}%`,
       cur: `vol ${currentMetrics.annual_volatility_pct?.toFixed(1) ?? '–'}%`,
-      note: 'Inverted volatility. Higher = safer (lower price swings). Scale: 40% vol → 0, 0% vol → 100.',
+      note: 'Inverted volatility — lower vol = safer.',
     },
     {
       axis: 'Diversification',
-      rec: `N_eff ${recNEff.toFixed(1)}`,
-      cur: `N_eff ${currentMetrics.n_effective_assets?.toFixed(1) ?? '–'}`,
-      note: 'Effective number of positions (1/Herfindahl). Scale: 1 position → 0, 20 positions → 100.',
+      rec: `${recNEff.toFixed(1)} positions`,
+      cur: `${currentMetrics.n_effective_assets?.toFixed(1) ?? '–'} positions`,
+      note: 'Effective number of positions (1/HHI).',
     },
     {
       axis: 'Equity Share',
       rec: `${recEquityShare.toFixed(1)}%`,
       cur: `${currentMetrics.equity_share_pct?.toFixed(1) ?? '–'}%`,
-      note: '% of portfolio in equity/ETF assets. Direct 0–100 scale.',
+      note: '% of portfolio in equities/ETF.',
     },
     {
       axis: 'Balance',
-      rec: `HHI ${recHHI.toFixed(3)}`,
-      cur: `HHI ${curHHI.toFixed(3)}`,
-      note: 'Balance = (1 − HHI) × 100. Higher = less concentrated. HHI = Σwi² (1 = mono-asset, ~0 = equally spread).',
+      rec: `${Math.round((1 - recHHI) * 100)}/100`,
+      cur: `${Math.round((1 - curHHI) * 100)}/100`,
+      note: 'How evenly spread your portfolio is — higher = better balanced.',
     },
     {
       axis: 'Defensive Share',
       rec: `${recDefensiveShare.toFixed(1)}%`,
       cur: `${currentMetrics.defensive_share_pct?.toFixed(1) ?? '–'}%`,
-      note: '% of portfolio in bond/cash assets. Direct 0–100 scale.',
+      note: '% of portfolio in bonds/cash.',
     },
   ]
 
   return (
-    <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
-      <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">How to read the chart</p>
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
       {rows.map((r) => (
-        <div key={r.axis} className="grid grid-cols-[140px_90px_90px_1fr] gap-2 items-start">
-          <span className="font-medium text-gray-700 dark:text-gray-300">{r.axis}</span>
-          <span className="text-green-600 dark:text-green-400">Rec: {r.rec}</span>
-          <span className="text-blue-500 dark:text-blue-400">Cur: {r.cur}</span>
-          <span>{r.note}</span>
+        <div key={r.axis} className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">{r.axis}</p>
+          <div className="flex gap-4">
+            <div>
+              <p className="text-[10px] text-gray-400 mb-0.5">Recommended</p>
+              <p className="text-sm font-bold text-emerald-500">{r.rec}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400 mb-0.5">Current</p>
+              <p className="text-sm font-bold text-blue-500">{r.cur}</p>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">{r.note}</p>
         </div>
       ))}
     </div>
@@ -507,6 +514,13 @@ function AIAdvisorInner() {
     if (score <= 42) return t('advisor.riskMedLow')
     if (score <= 56) return t('advisor.riskMed')
     return t('advisor.riskHigh')
+  }
+
+  function riskDesc(score) {
+    if (score <= 26) return t('advisor.riskLowDesc')
+    if (score <= 42) return t('advisor.riskMedLowDesc')
+    if (score <= 56) return t('advisor.riskMedDesc')
+    return t('advisor.riskHighDesc')
   }
 
   function riskColor(score) {
@@ -693,9 +707,12 @@ function AIAdvisorInner() {
           <div>
             <Title>{t('advisor.riskProfile')}</Title>
             {user?.risk_score ? (
-              <div className="mt-2 flex items-center gap-3">
-                <Badge color={riskColor(user.risk_score)}>{riskLabel(user.risk_score)}</Badge>
-                <Text className="text-gray-400">{t('advisor.score')}: {user.risk_score}/68</Text>
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center gap-3">
+                  <Badge color={riskColor(user.risk_score)}>{riskLabel(user.risk_score)}</Badge>
+                  <Text className="text-gray-400">{t('advisor.score')}: {user.risk_score}/68</Text>
+                </div>
+                <Text className="text-gray-500 dark:text-gray-400 text-sm">{riskDesc(user.risk_score)}</Text>
               </div>
             ) : (
               <Text className="mt-2 text-gray-400">{t('advisor.notCompleted')}</Text>
@@ -842,47 +859,12 @@ function AIAdvisorInner() {
         </>
       )}
 
-      {/* Hint when score exists but radar not yet visible (page reload) */}
-      {user?.risk_score && !riskDetails && (
-        <Card className={cardClass}>
-          <Text className="text-gray-400 text-sm">
-            Retake the questionnaire to see your detailed MiFID II radar chart and score breakdown.
-          </Text>
-        </Card>
-      )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* AI Advice                                                           */}
+      {/* RADAR 2 — Recommended vs Current portfolio                         */}
       {/* ------------------------------------------------------------------ */}
       {user?.risk_score && (
         <>
-          <Card className={cardClass}>
-            <div className="flex items-center justify-between">
-              <div>
-                <Title>{t('advisor.aiAdvice')}</Title>
-                <Text className="text-gray-400">{t('advisor.aiAdviceDesc')}</Text>
-              </div>
-              <Button onClick={handleGenerateAdvice} loading={adviceLoading}>
-                {t('advisor.generate')}
-              </Button>
-            </div>
-            {adviceError && <p className="mt-3 text-sm text-red-500">{adviceError}</p>}
-            {advice && (
-              advice.is_structured
-                ? <StructuredAdvice advice={advice} />
-                : (
-                  <div className="mt-4">
-                    <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                      {advice.raw_text ?? String(advice)}
-                    </div>
-                  </div>
-                )
-            )}
-          </Card>
-
-          {/* -------------------------------------------------------------- */}
-          {/* RADAR 2 — Recommended vs Current portfolio                      */}
-          {/* -------------------------------------------------------------- */}
           <Card className={cardClass}>
             <Title>Portfolio Comparison — Recommended vs Current</Title>
             <Text className="text-gray-400 text-sm mt-1">
@@ -922,6 +904,33 @@ function AIAdvisorInner() {
                 Recommended portfolio not yet available. Make sure you have at least 2 holdings with
                 sufficient price history to run the optimiser.
               </p>
+            )}
+          </Card>
+
+          {/* -------------------------------------------------------------- */}
+          {/* AI Advice                                                        */}
+          {/* -------------------------------------------------------------- */}
+          <Card className={cardClass}>
+            <div className="flex items-center justify-between">
+              <div>
+                <Title>{t('advisor.aiAdvice')}</Title>
+                <Text className="text-gray-400">{t('advisor.aiAdviceDesc')}</Text>
+              </div>
+              <Button onClick={handleGenerateAdvice} loading={adviceLoading}>
+                {t('advisor.generate')}
+              </Button>
+            </div>
+            {adviceError && <p className="mt-3 text-sm text-red-500">{adviceError}</p>}
+            {advice && (
+              advice.is_structured
+                ? <StructuredAdvice advice={advice} />
+                : (
+                  <div className="mt-4">
+                    <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                      {advice.raw_text ?? String(advice)}
+                    </div>
+                  </div>
+                )
             )}
           </Card>
 
