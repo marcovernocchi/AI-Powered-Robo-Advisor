@@ -604,6 +604,17 @@ def export_excel(
 # Export — PDF
 # ---------------------------------------------------------------------------
 
+def _safe(value, maxlen: int = 0) -> str:
+    """Convert value to a Latin-1-safe string for fpdf core fonts.
+
+    Replaces characters outside Latin-1 with their closest ASCII equivalent
+    (via 'replace' fallback), so fpdf never raises UnicodeEncodeError.
+    """
+    s = str(value) if value is not None else ""
+    s = s.encode("latin-1", errors="replace").decode("latin-1")
+    return s[:maxlen] if maxlen else s
+
+
 @router.get("/export/pdf")
 def export_pdf(
     current_user: User = Depends(get_current_user),
@@ -615,15 +626,24 @@ def export_pdf(
     (total value, P&L, and — if a prior optimization exists — return/vol/sharpe),
     disclaimer.
     """
+    try:
+        return _generate_pdf(current_user, db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}") from exc
+
+
+def _generate_pdf(current_user: User, db):
     from fpdf import FPDF
 
     rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db)
     if not rows:
         raise HTTPException(status_code=400, detail="No holdings to export")
 
-    display_currency = current_user.display_currency or "USD"
+    display_currency = _safe(current_user.display_currency or "USD")
     today = date_type.today().strftime("%d %B %Y")
-    username = current_user.name or current_user.email
+    username = _safe(current_user.name or current_user.email)
 
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -656,17 +676,17 @@ def export_pdf(
     for i, r in enumerate(rows):
         fill = i % 2 == 0
         pdf.set_fill_color(240, 244, 252) if fill else pdf.set_fill_color(255, 255, 255)
-        pnl_color = (0, 150, 80) if r["pnl_pct"] >= 0 else (200, 0, 0)
+        pnl_color = (0, 150, 80) if (r["pnl_pct"] or 0) >= 0 else (200, 0, 0)
         values = [
-            r["ticker"],
-            (r["asset_name"] or "")[:20],
-            r["asset_type"],
+            _safe(r["ticker"]),
+            _safe(r["asset_name"] or "", maxlen=20),
+            _safe(r["asset_type"] or ""),
             f"{r['shares']:.2f}",
-            f"{r['avg_buy_price']:.2f}",
-            f"{r['current_price']:.2f}",
-            f"{r['value']:,.2f}",
-            f"{r['pnl_pct']:+.2f}%",
-            f"{r['weight_pct']:.2f}%",
+            f"{r['avg_buy_price']:.2f}" if r["avg_buy_price"] is not None else "N/A",
+            f"{r['current_price']:.2f}" if r["current_price"] is not None else "N/A",
+            f"{r['value']:,.2f}" if r["value"] is not None else "N/A",
+            f"{r['pnl_pct']:+.2f}%" if r["pnl_pct"] is not None else "N/A",
+            f"{r['weight_pct']:.2f}%" if r["weight_pct"] is not None else "N/A",
         ]
         row_h = 6
         for j, (val, w) in enumerate(zip(values, col_widths)):
