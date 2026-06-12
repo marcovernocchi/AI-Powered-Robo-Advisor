@@ -13,7 +13,7 @@ from backend.config import settings
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 COLUMN_ALIASES = {
-    'ticker':        ['ticker', 'symbol', 'strumento', 'titolo', 'codice_titolo', 'simbolo'],
+    'ticker':        ['ticker', 'symbol', 'codice_titolo', 'simbolo'],
     'isin':          ['isin', 'codice_isin'],
     'asset_name':    ['name', 'nome', 'nome_etf', 'descrizione', 'description', 'denominazione', 'strumento', 'titolo', 'asset'],
     'asset_type':    ['tipo', 'type', 'asset_type', 'categoria', 'category'],
