@@ -12,9 +12,13 @@ export const PERIOD_OPTIONS = [
   { label: 'MAX', api: 'max', months: null, days: null },
 ]
 
-// Chart data cache — persists for the session, avoids re-hitting the backend on tab switches
+// Per-combination cache: processed chart series ready to render
 const _chartCache = new Map()
 const _CHART_TTL_MS = { '5d': 30, '1mo': 30, '3mo': 120, '6mo': 120, 'ytd': 120, '1y': 240, '2y': 240, '5y': 480, 'max': 480 }
+
+// Per-ticker raw data cache: populated by the aggregated fetch, reused by individual portfolios
+const _rawPriceCache = new Map()  // key: "TICKER-period"  → { rows, expiresAt }
+const _rawDivCache   = new Map()  // key: "TICKER"         → { dividends, expiresAt }
 
 function thinData(data, opt) {
   if (!data.length) return data
@@ -34,6 +38,27 @@ function formatDate(dateStr, opt) {
   return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
 }
 
+async function fetchRawPrice(ticker, periodApi, ttlMin) {
+  const key = `${ticker}-${periodApi}`
+  const hit = _rawPriceCache.get(key)
+  if (hit && Date.now() < hit.expiresAt) return hit.rows
+  const rows = await getMarketHistory(ticker, periodApi)
+    .then((r) => r.data)
+    .catch(() => [])
+  _rawPriceCache.set(key, { rows, expiresAt: Date.now() + ttlMin * 60 * 1000 })
+  return rows
+}
+
+async function fetchRawDiv(ticker, ttlMin) {
+  const hit = _rawDivCache.get(ticker)
+  if (hit && Date.now() < hit.expiresAt) return hit.dividends
+  const dividends = await getDividends(ticker)
+    .then((r) => r.dividends)
+    .catch(() => [])
+  _rawDivCache.set(ticker, { dividends, expiresAt: Date.now() + ttlMin * 60 * 1000 })
+  return dividends
+}
+
 async function buildChartData(holdings, period) {
   if (!holdings?.length) return []
 
@@ -41,17 +66,17 @@ async function buildChartData(holdings, period) {
   const cached = _chartCache.get(cacheKey)
   if (cached && Date.now() < cached.expiresAt) return cached.data
 
+  const ttlMin = _CHART_TTL_MS[period.api] ?? 120
+
   const [histories, dividendData] = await Promise.all([
-    Promise.all(holdings.map((h) =>
-      getMarketHistory(h.ticker, period.api)
-        .then((r) => ({ shares: h.shares, value: h.value, purchaseDate: h.purchase_date ?? null, data: r.data }))
-        .catch(() => ({ shares: h.shares, value: h.value, purchaseDate: h.purchase_date ?? null, data: [] }))
-    )),
-    Promise.all(holdings.map((h) =>
-      getDividends(h.ticker, h.purchase_date)
-        .then((r) => ({ shares: h.shares, purchaseDate: h.purchase_date, dividends: r.dividends }))
-        .catch(() => ({ shares: h.shares, purchaseDate: h.purchase_date, dividends: [] }))
-    )),
+    Promise.all(holdings.map(async (h) => ({
+      shares: h.shares, value: h.value, purchaseDate: h.purchase_date ?? null,
+      data: await fetchRawPrice(h.ticker, period.api, ttlMin),
+    }))),
+    Promise.all(holdings.map(async (h) => ({
+      shares: h.shares, purchaseDate: h.purchase_date,
+      dividends: await fetchRawDiv(h.ticker, ttlMin),
+    }))),
   ])
 
   const byDate = {}
@@ -110,7 +135,6 @@ async function buildChartData(holdings, period) {
   }
 
   const result = thinData(sorted, period).map((d) => ({ date: formatDate(d.rawDate, period), Value: d.Value }))
-  const ttlMin = _CHART_TTL_MS[period.api] ?? 120
   _chartCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttlMin * 60 * 1000 })
   return result
 }
@@ -159,7 +183,6 @@ export function PortfolioProvider({ children }) {
   const handleTabChange = useCallback(async (tab) => {
     if (tab === activeTab) return
     setActiveTab(tab)
-    setLoading(true)
     await fetchAll(tab, selectedPeriod)
   }, [activeTab, selectedPeriod, fetchAll])
 
