@@ -12,6 +12,10 @@ import EditHoldingModal from '../components/EditHoldingModal'
 import ImportModal from '../components/ImportModal'
 import { useLang } from '../context/LangContext'
 
+// Module-level chart cache: key = "ticker1,ticker2-period", TTL matched to backend
+const _chartCache = new Map()
+const _CHART_TTL_MS = { '5d': 30, '1mo': 30, '3mo': 120, '6mo': 120, 'ytd': 120, '1y': 240, '2y': 240, '5y': 480, 'max': 480 }
+
 const PERIOD_OPTIONS = [
   { label: '1W',  api: '5d',  months: null, days: 7 },
   { label: '1M',  api: '1mo', months: 1,    days: null },
@@ -41,6 +45,9 @@ function formatDate(dateStr, opt) {
 
 async function buildChartData(holdings, period) {
   if (!holdings?.length) return []
+  const cacheKey = `${holdings.map(h => h.ticker).sort().join(',')}-${period.api}`
+  const cached = _chartCache.get(cacheKey)
+  if (cached && Date.now() < cached.expiresAt) return cached.data
   const [histories, dividendData] = await Promise.all([
     Promise.all(holdings.map((h) =>
       getMarketHistory(h.ticker, period.api)
@@ -103,7 +110,10 @@ async function buildChartData(holdings, period) {
     cutoff.setMonth(cutoff.getMonth() - period.months)
     sorted = sorted.filter((d) => new Date(d.rawDate) >= cutoff)
   }
-  return thinData(sorted, period).map((d) => ({ date: formatDate(d.rawDate, period), Value: d.Value }))
+  const result = thinData(sorted, period).map((d) => ({ date: formatDate(d.rawDate, period), Value: d.Value }))
+  const ttlMin = _CHART_TTL_MS[period.api] ?? 120
+  _chartCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttlMin * 60 * 1000 })
+  return result
 }
 
 export default function Portfolio() {
