@@ -4,6 +4,7 @@ import {
   Radar, Legend, ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
 } from 'recharts'
 import { Card, Title, Text, Button, Badge } from '@tremor/react'
+import DropdownSelect from '../components/DropdownSelect'
 import {
   generateAdvice, getAdviceHistory, setRiskProfile, getMe,
   getPortfolio, getPortfolioMetrics, optimizePortfolio, explainRiskProfile,
@@ -761,14 +762,15 @@ function AIAdvisorInner() {
               ))}
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('advisor.b4Label')}</p>
-                <select
+                <DropdownSelect
                   value={answers.b4}
-                  onChange={(e) => setAnswer('b4', e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
-                >
-                  <option value="" disabled>{t('advisor.b4Placeholder')}</option>
-                  {SECTION_B4_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                  onChange={(v) => setAnswer('b4', v)}
+                  options={[
+                    { value: '', label: t('advisor.b4Placeholder') },
+                    ...SECTION_B4_OPTIONS.map((o) => ({ value: o, label: o })),
+                  ]}
+                  className="w-full"
+                />
               </div>
             </div>
           )}
