@@ -92,19 +92,16 @@ export default function Backtesting() {
   const fmtCompact = makeCompactFormatter(lang)
 
   // --- Form state ---
-  const [assets, setAssets] = useState([
-    { ticker: 'VWCE.MI', weight: '60' },
-    { ticker: 'AGGH.MI', weight: '40' },
-  ])
-  const [capital, setCapital] = useState('10000')
-  const [startDate, setStartDate] = useState('2018-01-01')
-  const [endDate, setEndDate] = useState('2023-12-31')
+  const [assets, setAssets] = useState([{ ticker: '', weight: '' }])
+  const [capital, setCapital] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [rebalance, setRebalance] = useState('annual')
-  const [driftThreshold, setDriftThreshold] = useState('5')
-  const [txCost, setTxCost] = useState('10')
-  const [ter, setTer] = useState('20')
-  const [spread, setSpread] = useState('2')
-  const [benchmark, setBenchmark] = useState('SPY')
+  const [driftThreshold, setDriftThreshold] = useState('')
+  const [txCost, setTxCost] = useState('')
+  const [ter, setTer] = useState('')
+  const [spread, setSpread] = useState('')
+  const [benchmark, setBenchmark] = useState('')
 
   // --- Load from portfolio ---
   const [portfolioList, setPortfolioList] = useState(null)  // null = not fetched yet
@@ -119,6 +116,13 @@ export default function Backtesting() {
 
   const totalWeight = assets.reduce((s, a) => s + (parseFloat(a.weight) || 0), 0)
   const weightsOk = Math.abs(totalWeight - 100) < 0.01
+  const hasAssetContent = assets.some((a) => a.ticker.trim() || a.weight !== '')
+  const formValid =
+    weightsOk &&
+    assets.some((a) => a.ticker.trim()) &&
+    parseFloat(capital) > 0 &&
+    startDate &&
+    endDate
 
   function addAsset() {
     setAssets([...assets, { ticker: '', weight: '' }])
@@ -217,10 +221,10 @@ export default function Backtesting() {
         start_date: startDate,
         end_date: endDate,
         rebalance_frequency: rebalance,
-        drift_threshold: parseFloat(driftThreshold) / 100,
-        transaction_cost_bps: parseFloat(txCost),
-        annual_ter_bps: parseFloat(ter),
-        spread_bps: parseFloat(spread),
+        drift_threshold: (parseFloat(driftThreshold) || 5) / 100,
+        transaction_cost_bps: parseFloat(txCost) || 0,
+        annual_ter_bps: parseFloat(ter) || 0,
+        spread_bps: parseFloat(spread) || 0,
         benchmark_ticker: benchmark.trim() || null,
       })
       setResult(data)
@@ -328,7 +332,6 @@ export default function Backtesting() {
                     value={a.ticker}
                     onChange={(e) => updateAsset(i, 'ticker', e.target.value)}
                     className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100 font-mono uppercase"
-                    required
                   />
                   <NumberInput
                     placeholder="%"
@@ -361,11 +364,13 @@ export default function Backtesting() {
                 >
                   {bt('addAsset')}
                 </button>
-                <span className={`text-xs font-mono font-semibold ${weightsOk ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {totalWeight.toFixed(1)}%
-                </span>
+                {hasAssetContent && (
+                  <span className={`text-xs font-mono font-semibold ${weightsOk ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {totalWeight.toFixed(1)}%
+                  </span>
+                )}
               </div>
-              {!weightsOk && (
+              {hasAssetContent && !weightsOk && (
                 <p className="text-xs text-red-500">{bt('weightsError')}</p>
               )}
             </div>
@@ -376,17 +381,17 @@ export default function Backtesting() {
 
               <div>
                 <label className={labelClass}>{bt('capital')}</label>
-                <NumberInput value={capital} onChange={setCapital} min={1} max={10000000} step={100} fallback={10000} className={inputClass} />
+                <NumberInput value={capital} onChange={setCapital} min={1} max={10000000} step={100} optional className={inputClass} />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className={labelClass}>{bt('startDate')}</label>
-                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClass} required />
+                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>{bt('endDate')}</label>
-                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} required />
+                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} />
                 </div>
               </div>
 
@@ -402,22 +407,22 @@ export default function Backtesting() {
               {rebalance === 'drift' && (
                 <div>
                   <label className={labelClass}>{bt('driftThreshold')}</label>
-                  <NumberInput value={driftThreshold} onChange={setDriftThreshold} min={0.1} max={50} step={0.1} fallback={5} className={inputClass} />
+                  <NumberInput value={driftThreshold} onChange={setDriftThreshold} min={0.1} max={50} step={0.1} optional placeholder="5" className={inputClass} />
                 </div>
               )}
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className={labelClass}>Tx cost<br />(bps)</label>
-                  <NumberInput value={txCost} onChange={setTxCost} min={0} max={500} step={1} fallback={0} className={inputClass} />
+                  <NumberInput value={txCost} onChange={setTxCost} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Annual TER<br />(bps)</label>
-                  <NumberInput value={ter} onChange={setTer} min={0} max={500} step={1} fallback={0} className={inputClass} />
+                  <NumberInput value={ter} onChange={setTer} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Spread<br />(bps)</label>
-                  <NumberInput value={spread} onChange={setSpread} min={0} max={500} step={1} fallback={0} className={inputClass} />
+                  <NumberInput value={spread} onChange={setSpread} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
                 </div>
               </div>
 
@@ -435,11 +440,14 @@ export default function Backtesting() {
 
             <button
               type="submit"
-              disabled={loading || !weightsOk}
+              disabled={loading || !formValid}
               className="w-full py-2.5 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {loading ? bt('running') : bt('runBtn')}
             </button>
+            {!formValid && hasAssetContent && (
+              <p className="text-xs text-center text-gray-400">{bt('formIncomplete')}</p>
+            )}
           </form>
         </div>
 
