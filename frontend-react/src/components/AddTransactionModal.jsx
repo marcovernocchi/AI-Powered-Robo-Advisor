@@ -7,7 +7,7 @@ function today() {
   return new Date().toISOString().split('T')[0]
 }
 
-export default function AddTransactionModal({ portfolioList, defaultPortfolioId, onClose, onAdded }) {
+export default function AddTransactionModal({ portfolioList, defaultPortfolioId, presetAsset, onClose, onAdded }) {
   const { t } = useLang()
 
   const ASSET_TYPES = [
@@ -29,12 +29,12 @@ export default function AddTransactionModal({ portfolioList, defaultPortfolioId,
     commodity: 'Ticker (es. GLD, USO, …)',
     cash:      'Valuta o etichetta (es. EUR)',
   }
-  const [assetType, setAssetType]     = useState('equity')
-  const [portfolioId, setPortfolioId] = useState(defaultPortfolioId ?? portfolioList[0]?.id ?? '')
+  const [assetType, setAssetType]     = useState(presetAsset?.type ?? 'equity')
+  const [portfolioId, setPortfolioId] = useState(presetAsset?.portfolioId ?? defaultPortfolioId ?? portfolioList[0]?.id ?? '')
   const [txType, setTxType]           = useState('buy')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(presetAsset?.ticker ?? '')
   const [searchResults, setSearchResults] = useState([])
-  const [selectedAsset, setSelectedAsset] = useState(null) // {ticker, name, exchange, type}
+  const [selectedAsset, setSelectedAsset] = useState(presetAsset ? { ticker: presetAsset.ticker, name: presetAsset.name } : null) // {ticker, name, exchange, type}
   const [searchOpen, setSearchOpen]   = useState(false)
   const [quantity, setQuantity]       = useState('')
   const [txDate, setTxDate]           = useState(today())

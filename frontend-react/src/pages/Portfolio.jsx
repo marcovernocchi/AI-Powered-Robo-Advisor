@@ -9,9 +9,12 @@ import { deleteHolding, optimizePortfolio, downloadPortfolioExport } from '../ap
 import { aggregateHoldings } from '../utils/holdingsUtils'
 import AddTransactionModal from '../components/AddTransactionModal'
 import EditHoldingModal from '../components/EditHoldingModal'
+import SellHoldingModal from '../components/SellHoldingModal'
 import ImportModal from '../components/ImportModal'
 import { useLang } from '../context/LangContext'
 import { usePortfolio, PERIOD_OPTIONS } from '../context/PortfolioContext'
+
+const MASKED_VALUE = '* * * * *'
 
 export default function Portfolio() {
   const { t } = useLang()
@@ -22,9 +25,13 @@ export default function Portfolio() {
     handleTabChange, handlePeriod, refresh,
   } = usePortfolio()
 
+  const [showCapital, setShowCapital]       = useState(true)
   const [showModal, setShowModal]           = useState(false)
   const [showImport, setShowImport]         = useState(false)
   const [editingHolding, setEditingHolding] = useState(null)
+  const [actionMenu, setActionMenu]         = useState(null) // { id, top, left }
+  const [buyingHolding, setBuyingHolding]   = useState(null)
+  const [sellingHolding, setSellingHolding] = useState(null)
   const [optimization, setOptimization]     = useState(null)
   const [optLoading, setOptLoading]         = useState(false)
   const [optError, setOptError]             = useState('')
@@ -57,6 +64,7 @@ export default function Portfolio() {
   }
 
   async function handleDelete(id) {
+    if (!window.confirm(t('portfolio.confirmRemove'))) return
     try {
       await deleteHolding(id)
       await refresh()
@@ -94,6 +102,7 @@ export default function Portfolio() {
   }
 
   const firstPortfolioId = activeTab !== 'aggregated' ? activeTab : portfolioList[0]?.id
+  const actionMenuHolding = actionMenu ? holdings.find((x) => x.id === actionMenu.id) : null
 
   const ASSET_TYPE_LABEL = {
     equity:     'Equity',
@@ -159,11 +168,18 @@ export default function Portfolio() {
               <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('portfolio.title')}</h1>
               {holdings.length > 0 && (
                 <div className="mt-2">
+                  <button
+                    onClick={() => setShowCapital((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mb-1"
+                  >
+                    <span>{showCapital ? '◎' : '⊘'}</span>
+                    <span>{showCapital ? t('portfolio.hide') : t('portfolio.show')}</span>
+                  </button>
                   <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 tabular-nums leading-none">
-                    {fmtCurrency(total)}
+                    {showCapital ? fmtCurrency(total) : MASKED_VALUE}
                   </p>
                   <p className={`text-sm font-medium mt-1.5 ${totalPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {totalPnl >= 0 ? '+' : ''}{fmtCurrency(totalPnl)}&nbsp;&nbsp;
+                    {showCapital && <>{totalPnl >= 0 ? '+' : ''}{fmtCurrency(totalPnl)}&nbsp;&nbsp;</>}
                     <span className="font-normal opacity-80">({totalPnl >= 0 ? '+' : ''}{totalPnlPct.toFixed(2)}%)</span>
                   </p>
                 </div>
@@ -329,13 +345,13 @@ export default function Portfolio() {
                           <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug mb-2">
                             {selectedSlice.displayName ?? selectedSlice.name}
                           </p>
-                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtCurrency(selectedSlice.value)}</p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{showCapital ? fmtCurrency(selectedSlice.value) : MASKED_VALUE}</p>
                           <p className="text-sm text-gray-400 mt-1">{total > 0 ? ((selectedSlice.value / total) * 100).toFixed(1) : 0}%</p>
                         </>
                       ) : (
                         <>
                           <p className="text-xs text-gray-400 mb-2">Total</p>
-                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtCurrency(total)}</p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{showCapital ? fmtCurrency(total) : MASKED_VALUE}</p>
                         </>
                       )}
                     </div>
@@ -433,10 +449,10 @@ export default function Portfolio() {
             <TableHead>
               <TableRow>
                 <TableHeaderCell className="w-1/2">Asset</TableHeaderCell>
-                <TableHeaderCell>Valore acquisto</TableHeaderCell>
+                <TableHeaderCell>{t('portfolio.purchaseValue')}</TableHeaderCell>
                 <TableHeaderCell>
                   <button onClick={() => handleSort('value')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                    Valore ora
+                    {t('portfolio.currentValue')}
                     <span className="text-gray-300 dark:text-gray-600">{sortKey === 'value' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
                   </button>
                 </TableHeaderCell>
@@ -468,14 +484,14 @@ export default function Portfolio() {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="tabular-nums text-gray-900 dark:text-gray-100">{fmtCurrency(buyTotal, h.currency)}</p>
+                        <p className="tabular-nums text-gray-900 dark:text-gray-100">{showCapital ? fmtCurrency(buyTotal, h.currency) : MASKED_VALUE}</p>
                         <p className="text-xs text-gray-400 mt-0.5">{fmtCurrency(h.avg_buy_price, h.currency)} avg</p>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div>
                         <p className="tabular-nums text-gray-900 dark:text-gray-100">
-                          {fmtCurrency(h.value)}
+                          {showCapital ? fmtCurrency(h.value) : MASKED_VALUE}
                           {h.price_stale && <span title="Prezzo non aggiornato" className="ml-1 text-xs text-amber-400">⚠</span>}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5">{fmtCurrency(h.current_price, h.currency)}</p>
@@ -483,7 +499,7 @@ export default function Portfolio() {
                     </TableCell>
                     <TableCell>
                       <p className={`tabular-nums font-medium ${pnlAbs >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {pnlAbs >= 0 ? '+' : ''}{fmtCurrency(pnlAbs)}
+                        {showCapital ? <>{pnlAbs >= 0 ? '+' : ''}{fmtCurrency(pnlAbs)}</> : MASKED_VALUE}
                       </p>
                       <p className={`text-xs mt-0.5 ${h.pnl_pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {h.pnl_pct >= 0 ? '↗' : '↘'}{Math.abs(h.pnl_pct).toFixed(2)}%
@@ -491,7 +507,16 @@ export default function Portfolio() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => setEditingHolding(h)} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 dark:border-blue-800 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors">{t('portfolio.edit')}</button>
+                        <button
+                          onClick={(e) => {
+                            if (actionMenu?.id === h.id) { setActionMenu(null); return }
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setActionMenu({ id: h.id, top: rect.bottom + 4, left: rect.left })
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 dark:border-blue-800 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                        >
+                          {t('portfolio.edit')} <span className="text-[10px] opacity-60">▾</span>
+                        </button>
                         <button onClick={() => handleDelete(h.id)} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">{t('portfolio.remove')}</button>
                       </div>
                     </TableCell>
@@ -539,7 +564,7 @@ export default function Portfolio() {
                 <div className="space-y-2">
                   {Object.entries(optimization.weights ?? {}).map(([ticker, w]) => (
                     <div key={ticker} className="flex items-center gap-3">
-                      <span className="w-14 text-sm font-semibold text-gray-800 dark:text-gray-200">{ticker}</span>
+                      <span className="w-20 shrink-0 truncate text-sm font-semibold text-gray-800 dark:text-gray-200">{ticker}</span>
                       <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
                         <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${(w * 100).toFixed(1)}%` }} />
                       </div>
@@ -556,11 +581,43 @@ export default function Portfolio() {
       {showImport && (
         <ImportModal portfolioList={portfolioList} defaultPortfolioId={firstPortfolioId} onClose={() => setShowImport(false)} onImported={refresh} />
       )}
+      {actionMenu && actionMenuHolding && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setActionMenu(null)} />
+          <div
+            className="fixed z-40 w-28 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden"
+            style={{ top: actionMenu.top, left: actionMenu.left }}
+          >
+            <button onClick={() => { setEditingHolding(actionMenuHolding); setActionMenu(null) }} className="w-full text-left px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('portfolio.edit')}</button>
+            <button onClick={() => { setBuyingHolding(actionMenuHolding); setActionMenu(null) }} className="w-full text-left px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('modal.buy')}</button>
+            {actionMenuHolding.asset_type !== 'cash' && (
+              <button onClick={() => { setSellingHolding(actionMenuHolding); setActionMenu(null) }} className="w-full text-left px-3 py-2 text-xs text-orange-600 dark:text-orange-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('modal.sell')}</button>
+            )}
+          </div>
+        </>
+      )}
       {editingHolding && (
         <EditHoldingModal holding={editingHolding} onClose={() => setEditingHolding(null)} onSaved={refresh} />
       )}
       {showModal && (
         <AddTransactionModal portfolioList={portfolioList} defaultPortfolioId={firstPortfolioId} onClose={() => setShowModal(false)} onAdded={refresh} />
+      )}
+      {buyingHolding && (
+        <AddTransactionModal
+          portfolioList={portfolioList}
+          defaultPortfolioId={firstPortfolioId}
+          presetAsset={{
+            ticker: buyingHolding.ticker,
+            name: buyingHolding.asset_name,
+            type: buyingHolding.asset_type,
+            portfolioId: buyingHolding.portfolio_id,
+          }}
+          onClose={() => setBuyingHolding(null)}
+          onAdded={refresh}
+        />
+      )}
+      {sellingHolding && (
+        <SellHoldingModal holding={sellingHolding} onClose={() => setSellingHolding(null)} onSold={refresh} />
       )}
     </div>
   )

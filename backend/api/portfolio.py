@@ -192,15 +192,24 @@ def _build_holdings_out(holdings, display_currency: str, db=None) -> tuple[list,
                 if name:
                     h.asset_name = name
         db.commit()
-    prices = get_multiple_prices([h.ticker for h in holdings])
+    non_cash_tickers = [h.ticker for h in holdings if h.asset_type != 'cash']
+    prices = get_multiple_prices(non_cash_tickers) if non_cash_tickers else {}
     holdings_out = []
     total_value = 0.0
     for h in holdings:
-        price_data = prices.get(h.ticker, {"price": None, "stale": False})
-        current_price_native = price_data["price"] or h.avg_buy_price
-        price_stale = price_data["stale"]
-        native_currency = get_ticker_currency(h.ticker)
-        holding_currency = h.currency or display_currency
+        if h.asset_type == 'cash':
+            # Cash holdings have no market price: the ticker is the currency
+            # code itself, and 1 unit is always worth 1 unit of that currency.
+            current_price_native = h.avg_buy_price
+            price_stale = False
+            native_currency = h.ticker
+            holding_currency = h.currency or h.ticker
+        else:
+            price_data = prices.get(h.ticker, {"price": None, "stale": False})
+            current_price_native = price_data["price"] or h.avg_buy_price
+            price_stale = price_data["stale"]
+            native_currency = get_ticker_currency(h.ticker)
+            holding_currency = h.currency or display_currency
         value_native = h.shares * current_price_native
         value = convert(value_native, native_currency, display_currency)
         total_value += value
