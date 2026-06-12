@@ -13,6 +13,8 @@ import ImportModal from '../components/ImportModal'
 import { useLang } from '../context/LangContext'
 import { usePortfolio, PERIOD_OPTIONS } from '../context/PortfolioContext'
 
+const MASKED_VALUE = '* * * * *'
+
 export default function Portfolio() {
   const { t } = useLang()
   const {
@@ -22,6 +24,7 @@ export default function Portfolio() {
     handleTabChange, handlePeriod, refresh,
   } = usePortfolio()
 
+  const [showCapital, setShowCapital]       = useState(true)
   const [showModal, setShowModal]           = useState(false)
   const [showImport, setShowImport]         = useState(false)
   const [editingHolding, setEditingHolding] = useState(null)
@@ -160,11 +163,18 @@ export default function Portfolio() {
               <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('portfolio.title')}</h1>
               {holdings.length > 0 && (
                 <div className="mt-2">
+                  <button
+                    onClick={() => setShowCapital((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mb-1"
+                  >
+                    <span>{showCapital ? '◎' : '⊘'}</span>
+                    <span>{showCapital ? t('portfolio.hide') : t('portfolio.show')}</span>
+                  </button>
                   <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 tabular-nums leading-none">
-                    {fmtCurrency(total)}
+                    {showCapital ? fmtCurrency(total) : MASKED_VALUE}
                   </p>
                   <p className={`text-sm font-medium mt-1.5 ${totalPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {totalPnl >= 0 ? '+' : ''}{fmtCurrency(totalPnl)}&nbsp;&nbsp;
+                    {showCapital && <>{totalPnl >= 0 ? '+' : ''}{fmtCurrency(totalPnl)}&nbsp;&nbsp;</>}
                     <span className="font-normal opacity-80">({totalPnl >= 0 ? '+' : ''}{totalPnlPct.toFixed(2)}%)</span>
                   </p>
                 </div>
@@ -330,13 +340,13 @@ export default function Portfolio() {
                           <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug mb-2">
                             {selectedSlice.displayName ?? selectedSlice.name}
                           </p>
-                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtCurrency(selectedSlice.value)}</p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{showCapital ? fmtCurrency(selectedSlice.value) : MASKED_VALUE}</p>
                           <p className="text-sm text-gray-400 mt-1">{total > 0 ? ((selectedSlice.value / total) * 100).toFixed(1) : 0}%</p>
                         </>
                       ) : (
                         <>
                           <p className="text-xs text-gray-400 mb-2">Total</p>
-                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtCurrency(total)}</p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{showCapital ? fmtCurrency(total) : MASKED_VALUE}</p>
                         </>
                       )}
                     </div>
@@ -434,10 +444,10 @@ export default function Portfolio() {
             <TableHead>
               <TableRow>
                 <TableHeaderCell className="w-1/2">Asset</TableHeaderCell>
-                <TableHeaderCell>Valore acquisto</TableHeaderCell>
+                <TableHeaderCell>{t('portfolio.purchaseValue')}</TableHeaderCell>
                 <TableHeaderCell>
                   <button onClick={() => handleSort('value')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                    Valore ora
+                    {t('portfolio.currentValue')}
                     <span className="text-gray-300 dark:text-gray-600">{sortKey === 'value' ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
                   </button>
                 </TableHeaderCell>
@@ -469,14 +479,14 @@ export default function Portfolio() {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="tabular-nums text-gray-900 dark:text-gray-100">{fmtCurrency(buyTotal, h.currency)}</p>
+                        <p className="tabular-nums text-gray-900 dark:text-gray-100">{showCapital ? fmtCurrency(buyTotal, h.currency) : MASKED_VALUE}</p>
                         <p className="text-xs text-gray-400 mt-0.5">{fmtCurrency(h.avg_buy_price, h.currency)} avg</p>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div>
                         <p className="tabular-nums text-gray-900 dark:text-gray-100">
-                          {fmtCurrency(h.value)}
+                          {showCapital ? fmtCurrency(h.value) : MASKED_VALUE}
                           {h.price_stale && <span title="Prezzo non aggiornato" className="ml-1 text-xs text-amber-400">⚠</span>}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5">{fmtCurrency(h.current_price, h.currency)}</p>
@@ -484,7 +494,7 @@ export default function Portfolio() {
                     </TableCell>
                     <TableCell>
                       <p className={`tabular-nums font-medium ${pnlAbs >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {pnlAbs >= 0 ? '+' : ''}{fmtCurrency(pnlAbs)}
+                        {showCapital ? <>{pnlAbs >= 0 ? '+' : ''}{fmtCurrency(pnlAbs)}</> : MASKED_VALUE}
                       </p>
                       <p className={`text-xs mt-0.5 ${h.pnl_pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {h.pnl_pct >= 0 ? '↗' : '↘'}{Math.abs(h.pnl_pct).toFixed(2)}%
