@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AreaChart, LineChart } from '@tremor/react'
 import { runBacktest, getPortfolio, getPortfolioById, getPortfolioList } from '../api/client'
 import { useLang } from '../context/LangContext'
+import NumberInput from '../components/NumberInput'
 
 const REBALANCE_OPTIONS = [
   { value: 'none', labelKey: 'rebalanceNone' },
@@ -329,16 +330,15 @@ export default function Backtesting() {
                     className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100 font-mono uppercase"
                     required
                   />
-                  <input
-                    type="number"
+                  <NumberInput
                     placeholder="%"
                     value={a.weight}
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    onChange={(e) => updateAsset(i, 'weight', e.target.value)}
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    fallback={0}
+                    onChange={(v) => updateAsset(i, 'weight', v)}
                     className="w-16 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100"
-                    required
                   />
                   {assets.length > 1 && (
                     <button
@@ -376,7 +376,7 @@ export default function Backtesting() {
 
               <div>
                 <label className={labelClass}>{bt('capital')}</label>
-                <input type="number" value={capital} onChange={(e) => setCapital(e.target.value)} min="100" step="100" className={inputClass} required />
+                <NumberInput value={capital} onChange={setCapital} min={1} max={10000000} step={100} fallback={10000} className={inputClass} />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -402,22 +402,22 @@ export default function Backtesting() {
               {rebalance === 'drift' && (
                 <div>
                   <label className={labelClass}>{bt('driftThreshold')}</label>
-                  <input type="number" value={driftThreshold} onChange={(e) => setDriftThreshold(e.target.value)} min="0.1" max="50" step="0.1" className={inputClass} />
+                  <NumberInput value={driftThreshold} onChange={setDriftThreshold} min={0.1} max={50} step={0.1} fallback={5} className={inputClass} />
                 </div>
               )}
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className={labelClass}>Tx cost<br />(bps)</label>
-                  <input type="number" value={txCost} onChange={(e) => setTxCost(e.target.value)} min="0" step="1" className={inputClass} />
+                  <NumberInput value={txCost} onChange={setTxCost} min={0} max={500} step={1} fallback={0} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Annual TER<br />(bps)</label>
-                  <input type="number" value={ter} onChange={(e) => setTer(e.target.value)} min="0" step="1" className={inputClass} />
+                  <NumberInput value={ter} onChange={setTer} min={0} max={500} step={1} fallback={0} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Spread<br />(bps)</label>
-                  <input type="number" value={spread} onChange={(e) => setSpread(e.target.value)} min="0" step="1" className={inputClass} />
+                  <NumberInput value={spread} onChange={setSpread} min={0} max={500} step={1} fallback={0} className={inputClass} />
                 </div>
               </div>
 
