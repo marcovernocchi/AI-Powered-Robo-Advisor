@@ -24,7 +24,7 @@ def _risk_label(score: int) -> str:
     return "aggressive (high risk)"
 
 
-def generate_advice(portfolio_data: dict, risk_score: int) -> dict:
+def generate_advice(portfolio_data: dict, risk_score: int, lang: str = 'en') -> dict:
     """Return a structured advice payload.
 
     Structured shape (is_structured=True):
@@ -60,7 +60,9 @@ def generate_advice(portfolio_data: dict, risk_score: int) -> dict:
     )
 
     # ── JSON-structured prompt ────────────────────────────────────────────────
+    language_instruction = "Respond in Italian." if lang == 'it' else "Respond in English."
     prompt = f"""You are a professional financial advisor providing personalized investment advice.
+{language_instruction}
 Respond with ONLY a valid JSON object — no markdown fences, no text outside the JSON.
 
 User profile:

@@ -485,7 +485,7 @@ class AIAdvisorErrorBoundary extends Component {
 // ===========================================================================
 function AIAdvisorInner() {
   const { user, setUser } = useAuth()
-  const { t } = useLang()
+  const { t, lang } = useLang()
 
   const cardClass = "ring-0 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-sm bg-white dark:bg-gray-900"
 
@@ -673,7 +673,7 @@ function AIAdvisorInner() {
     setAdviceLoading(true)
     setAdvice(null)
     try {
-      const result = await generateAdvice()
+      const result = await generateAdvice(lang)
       setAdvice(result.advice)
       const updated = await getAdviceHistory()
       setHistory(updated)
