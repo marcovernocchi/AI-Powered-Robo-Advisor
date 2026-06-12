@@ -281,9 +281,15 @@ export default function Dashboard() {
           ) : (
             <p className="text-sm text-gray-400 py-8 text-center">
               {t('dashboard.noHoldings')}{' '}
-              <button onClick={() => navigate('/portfolio')} className="text-blue-500 hover:underline">
-                {t('dashboard.addFirstPosition')}
-              </button>
+              {portfolioList.length === 0 ? (
+                <button onClick={() => setShowAddModal(true)} className="text-blue-500 hover:underline">
+                  {t('dashboard.createFirstAccount')}
+                </button>
+              ) : (
+                <button onClick={() => navigate('/portfolio')} className="text-blue-500 hover:underline">
+                  {t('dashboard.addFirstPosition')}
+                </button>
+              )}
             </p>
           )}
         </div>
