@@ -31,7 +31,7 @@ A personalized investment advisory platform combining machine learning portfolio
 | ML / Finance | PyPortfolioOpt (mean-variance, Black-Litterman, HRP), yfinance, pandas, numpy, scikit-learn |
 | Backtesting / Monte Carlo | Custom engines in `backend/backtesting/` and `backend/monte_carlo/` |
 | Reports | openpyxl (Excel export), fpdf2 + matplotlib (PDF export with charts) |
-| LLM | Groq API (Llama 3.3-70B) — free |
+| LLM | Groq API (Llama 3.3-70B for advice/import, Llama 3.1-8B Instant for CI automation) — free |
 | Frontend (React) | React 18 + Vite + Tremor + Tailwind CSS, with i18n (English/Italian) |
 | Frontend (legacy) | Streamlit + Plotly |
 | Deployment | DigitalOcean VPS (Docker) |
