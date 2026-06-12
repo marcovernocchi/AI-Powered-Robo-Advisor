@@ -209,7 +209,7 @@ export default function Portfolio() {
                   ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100'
                   : 'border-transparent text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
-            >All portfolios</button>
+            >{t('portfolio.allPortfolios')}</button>
             {portfolioList.map((p) => (
               <button
                 key={p.id}
@@ -297,7 +297,7 @@ export default function Portfolio() {
           <div className="w-[500px] shrink-0">
             <div className={`${boxClass} p-5 h-full flex flex-col`}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Allocation</h2>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('portfolio.allocation')}</h2>
                 <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
                   <button
                     onClick={() => setChartView('type')}
@@ -306,7 +306,7 @@ export default function Portfolio() {
                         ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
                         : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                     }`}
-                  >Type</button>
+                  >{t('portfolio.byType')}</button>
                   <button
                     onClick={() => setChartView('ticker')}
                     className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
@@ -314,7 +314,7 @@ export default function Portfolio() {
                         ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
                         : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                     }`}
-                  >Asset</button>
+                  >{t('portfolio.byAsset')}</button>
                 </div>
               </div>
 
@@ -354,7 +354,7 @@ export default function Portfolio() {
                         </>
                       ) : (
                         <>
-                          <p className="text-xs text-gray-400 mb-2">Total</p>
+                          <p className="text-xs text-gray-400 mb-2">{t('portfolio.total')}</p>
                           <p className="text-xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{showCapital ? fmtCurrency(total) : MASKED_VALUE}</p>
                         </>
                       )}
@@ -381,7 +381,7 @@ export default function Portfolio() {
                 disabled={optLoading}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
               >
-                {optLoading ? 'Ottimizzando...' : 'Optimize'}
+                {optLoading ? t('portfolio.optimizing') : t('portfolio.optimize')}
               </button>
             )}
             <div className="relative">
@@ -390,7 +390,7 @@ export default function Portfolio() {
                 onClick={() => setShowExportPanel(v => !v)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-40"
               >
-                Export <span className="text-[10px] opacity-60">▾</span>
+                {t('portfolio.export')} <span className="text-[10px] opacity-60">▾</span>
               </button>
 
               {showExportPanel && (
