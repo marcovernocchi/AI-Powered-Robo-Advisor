@@ -122,6 +122,13 @@ export default function Market() {
               {info.industry && <Badge color="gray">{info.industry}</Badge>}
               {info.country && <Badge color="gray">{info.country}</Badge>}
             </div>
+            {info.description && (
+              <p className="mt-3 text-xs text-gray-400 leading-relaxed">
+                {info.description.length > 300
+                  ? `${info.description.slice(0, 300)}…`
+                  : info.description}
+              </p>
+            )}
           </Card>
 
           <Card className="ring-0 border-0 dark:bg-gray-900">
@@ -132,7 +139,7 @@ export default function Market() {
                 [t('market.peRatio'), info.pe_ratio?.toFixed(2) ?? null],
                 [t('market.weekHigh'), info['52w_high'] ? `$${info['52w_high'].toFixed(2)}` : null],
                 [t('market.weekLow'), info['52w_low'] ? `$${info['52w_low'].toFixed(2)}` : null],
-                [t('market.dividendYield'), info.dividend_yield ? `${(info.dividend_yield * 100).toFixed(2)}%` : null],
+                [t('market.dividendYield'), info.dividend_yield != null ? `${(info.dividend_yield * 100).toFixed(2)}%` : null],
                 [t('market.beta'), info.beta?.toFixed(2) ?? null],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between">
