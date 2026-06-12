@@ -218,6 +218,13 @@ def get_dividend_history(ticker: str, start_date: str = None) -> pd.DataFrame:
         return pd.DataFrame(columns=['Dividend'])
 
 
+def _normalize_dividend_yield(value) -> float | None:
+    # yfinance sometimes returns the yield already multiplied by 100 (e.g. 0.93 instead of 0.0093)
+    if value is None:
+        return None
+    return value / 100 if value > 0.5 else value
+
+
 def get_stock_info(ticker: str) -> dict:
     """yfinance for company info (AV overview costs credits)."""
     info = yf.Ticker(ticker).info
