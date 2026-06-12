@@ -43,6 +43,8 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false)
   const [settingsDetail, setSettingsDetail] = useState(null)
   const [showTxModal, setShowTxModal] = useState(false)
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => {
     if (showAddModal) setTimeout(() => inputRef.current?.focus(), 50)
@@ -86,10 +88,38 @@ export default function Dashboard() {
   const aggregatedHoldings = aggregateHoldings(holdings)
   const displayCurrency = portfolioData?.display_currency ?? 'USD'
 
-  function fmtCurrency(value) {
+  function fmtCurrency(value, currency, decimals = 0) {
     return value.toLocaleString('en-US', {
-      style: 'currency', currency: displayCurrency, maximumFractionDigits: 0,
+      style: 'currency', currency: currency ?? displayCurrency, maximumFractionDigits: decimals,
     })
+  }
+
+  function fmtDate(dateStr) {
+    if (!dateStr) return '–'
+    return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+
+  function handleSort(key) {
+    if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  const SORT_FN = {
+    value:         (a, b) => b.value - a.value,
+    pnl_pct:       (a, b) => b.pnl_pct - a.pnl_pct,
+    purchase_date: (a, b) => (a.purchase_date ?? '').localeCompare(b.purchase_date ?? ''),
+  }
+
+  const sortedHoldings = sortKey
+    ? [...holdings].sort((a, b) => {
+        const cmp = SORT_FN[sortKey]?.(a, b) ?? 0
+        return sortDir === 'desc' ? cmp : -cmp
+      })
+    : holdings
+
+  function SortIcon({ col }) {
+    if (sortKey !== col) return <span className="text-gray-300 dark:text-gray-600 ml-1">↕</span>
+    return <span className="ml-1">{sortDir === 'desc' ? '↓' : '↑'}</span>
   }
 
   const periodChangePct = chartData.length >= 2
@@ -320,44 +350,77 @@ export default function Dashboard() {
               {t('dashboard.addTransaction')}
             </button>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 uppercase tracking-wide">
-                <th className="text-left pb-2 font-medium">{t('dashboard.colTitle')}</th>
-                <th className="text-right pb-2 font-medium">{t('dashboard.colBuyIn')}</th>
-                <th className="text-right pb-2 font-medium">{t('dashboard.colPosition')}</th>
-                <th className="text-right pb-2 font-medium">{t('dashboard.colPL')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {aggregatedHoldings.map((h) => (
-                <tr key={h.ticker} className="border-b border-gray-50 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                  <td className="py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-400 shrink-0">
-                        {h.ticker.slice(0, 2)}
-                      </div>
-                      <div>
-                        <p className="font-semibold">{h.ticker}</p>
-                        <p className="text-xs text-gray-400">{h.shares} {t('dashboard.positions').toLowerCase()}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3 text-right text-gray-500 dark:text-gray-400">
-                    {h.avg_buy_price.toLocaleString('en-US', {
-                      style: 'currency', currency: h.currency ?? displayCurrency, maximumFractionDigits: 2,
-                    })}
-                  </td>
-                  <td className="py-3 text-right font-medium">{showCapital ? fmtCurrency(h.value) : MASKED_VALUE}</td>
-                  <td className="py-3 text-right">
-                    <span className={`font-medium ${h.pnl_pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {h.pnl_pct >= 0 ? '↗' : '↘'} {h.pnl_pct >= 0 ? '+' : ''}{h.pnl_pct.toFixed(2)}%
-                    </span>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 uppercase tracking-wide">
+                  <th className="text-left pb-2 font-medium pr-4">Asset</th>
+                  <th className="text-right pb-2 font-medium pr-4">Qty</th>
+                  <th className="text-right pb-2 font-medium pr-4">Avg buy price</th>
+                  <th className="text-right pb-2 font-medium pr-4">Current price</th>
+                  <th className="text-right pb-2 font-medium pr-4">
+                    <button onClick={() => handleSort('value')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
+                      Current value <SortIcon col="value" />
+                    </button>
+                  </th>
+                  <th className="text-right pb-2 font-medium pr-4">
+                    <button onClick={() => handleSort('pnl_pct')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
+                      P&amp;L <SortIcon col="pnl_pct" />
+                    </button>
+                  </th>
+                  <th className="text-right pb-2 font-medium">
+                    <button onClick={() => handleSort('purchase_date')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
+                      Buy date <SortIcon col="purchase_date" />
+                    </button>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sortedHoldings.map((h) => {
+                  const pnlAbs = h.value - h.avg_buy_price * h.shares
+                  return (
+                    <tr key={h.id} className="border-b border-gray-50 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td className="py-3 pr-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-400 shrink-0">
+                            {h.ticker.slice(0, 2)}
+                          </div>
+                          <div>
+                            <p className="font-semibold">{h.ticker}</p>
+                            {h.asset_name && <p className="text-xs text-gray-400 truncate max-w-[160px]">{h.asset_name}</p>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                        {h.shares}
+                      </td>
+                      <td className="py-3 pr-4 text-right tabular-nums text-gray-500 dark:text-gray-400">
+                        {fmtCurrency(h.avg_buy_price, h.currency, 2)}
+                      </td>
+                      <td className="py-3 pr-4 text-right tabular-nums text-gray-500 dark:text-gray-400">
+                        {h.current_price != null ? fmtCurrency(h.current_price, h.currency, 2) : '–'}
+                        {h.price_stale && <span title="Prezzo non aggiornato" className="ml-1 text-amber-400">⚠</span>}
+                      </td>
+                      <td className="py-3 pr-4 text-right tabular-nums font-medium">
+                        {showCapital ? fmtCurrency(h.value) : MASKED_VALUE}
+                      </td>
+                      <td className="py-3 pr-4 text-right">
+                        <p className={`tabular-nums font-medium ${pnlAbs >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {showCapital ? <>{pnlAbs >= 0 ? '+' : ''}{fmtCurrency(pnlAbs)}</> : MASKED_VALUE}
+                        </p>
+                        <p className={`text-xs mt-0.5 ${h.pnl_pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {h.pnl_pct >= 0 ? '↗' : '↘'} {h.pnl_pct >= 0 ? '+' : ''}{h.pnl_pct.toFixed(2)}%
+                        </p>
+                      </td>
+                      <td className="py-3 text-right text-gray-400 tabular-nums text-xs">
+                        {fmtDate(h.purchase_date)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
