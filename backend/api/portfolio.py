@@ -448,6 +448,30 @@ def portfolio_suggestions(current_user: User = Depends(get_current_user)):
 # Shared helper: build export rows
 # ---------------------------------------------------------------------------
 
+def _aggregate_by_ticker(raw_rows: list[dict]) -> list[dict]:
+    """Merge rows with the same ticker: sum shares/value, weighted-avg buy price."""
+    groups: dict = {}
+    for r in raw_rows:
+        t = r["ticker"]
+        if t not in groups:
+            groups[t] = {**r, "_total_cost": r["shares"] * r["avg_buy_price"]}
+        else:
+            g = groups[t]
+            g["_total_cost"] += r["shares"] * r["avg_buy_price"]
+            g["shares"]      += r["shares"]
+            g["value"]       += r["value"]
+            g["pnl_abs"]     += r["pnl_abs"]
+    result = []
+    for g in groups.values():
+        total_cost = g.pop("_total_cost")
+        g["avg_buy_price"] = round(total_cost / g["shares"], 4) if g["shares"] else g["avg_buy_price"]
+        g["pnl_pct"]  = round(g["pnl_abs"] / total_cost * 100, 2) if total_cost else 0.0
+        g["value"]    = round(g["value"],   2)
+        g["pnl_abs"]  = round(g["pnl_abs"], 2)
+        result.append(g)
+    return result
+
+
 def _build_export_rows(
     current_user: User, db: Session
 ) -> tuple[list[dict], float, float, OptimizationResult | None]:
@@ -502,7 +526,7 @@ def _build_export_rows(
     opt_weights: dict = opt_result.weights if opt_result else {}
 
     rows = []
-    for r in raw_rows:
+    for r in _aggregate_by_ticker(raw_rows):
         r["weight_pct"] = round(r["value"] / total_value * 100, 2) if total_value else 0.0
         opt_w = opt_weights.get(r["ticker"])
         r["opt_weight_pct"] = round(opt_w * 100, 2) if opt_w is not None else None
