@@ -32,6 +32,46 @@ function makeCompactFormatter(lang) {
   }
 }
 
+const SERIES_COLORS = {
+  Portfolio: { dot: '#10b981', text: 'text-emerald-500' },
+  Benchmark: { dot: '#3b82f6', text: 'text-blue-500' },
+}
+
+function BacktestTooltip({ payload, active, label }) {
+  if (!active || !payload || payload.length === 0) return null
+  return (
+    <div
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg px-3 py-2.5 min-w-[160px]"
+      style={{ pointerEvents: 'none' }}
+    >
+      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 border-b border-gray-100 dark:border-gray-800 pb-1">
+        {label}
+      </p>
+      {payload.map((entry) => {
+        const cfg = SERIES_COLORS[entry.name] ?? {}
+        return (
+          <div key={entry.name} className="flex items-center justify-between gap-4 py-0.5">
+            <span className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: cfg.dot ?? entry.color }}
+              />
+              {entry.name}
+            </span>
+            <span className={`text-xs font-semibold tabular-nums ${cfg.text ?? ''}`}>
+              {typeof entry.value === 'number'
+                ? entry.value >= 1000
+                  ? `${(entry.value / 1000).toFixed(2)}K€`
+                  : `${entry.value.toFixed(0)}€`
+                : entry.value}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function MetricCard({ label, value, highlight }) {
   const color =
     highlight === 'positive' ? 'text-emerald-500' :
@@ -452,6 +492,7 @@ export default function Backtesting() {
                     showYAxis
                     yAxisWidth={58}
                     curveType="linear"
+                    customTooltip={BacktestTooltip}
                   />
                 )}
               </div>
