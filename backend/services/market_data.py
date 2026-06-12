@@ -226,7 +226,7 @@ def get_stock_info(ticker: str) -> dict:
         "sector": info.get("sector", "N/A"),
         "market_cap": info.get("marketCap", 0),
         "pe_ratio": info.get("trailingPE"),
-        "dividend_yield": info.get("dividendYield"),
+        "dividend_yield": _normalize_dividend_yield(info.get("dividendYield")),
         "52w_high": info.get("fiftyTwoWeekHigh"),
         "52w_low": info.get("fiftyTwoWeekLow"),
         "description": info.get("longBusinessSummary", "")[:400],
