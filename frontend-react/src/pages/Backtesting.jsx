@@ -343,7 +343,7 @@ export default function Backtesting() {
                     step="any"
                     fallback={0}
                     onChange={(v) => updateAsset(i, 'weight', v)}
-                    className="w-16 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100"
+                    className="w-20 pl-2 pr-6 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100"
                   />
                   {assets.length > 1 && (
                     <button
