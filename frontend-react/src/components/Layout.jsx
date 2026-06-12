@@ -15,7 +15,6 @@ export default function Layout() {
     { to: '/advisor',   label: t('nav.aiAdvisor') },
     { to: '/market',       label: t('nav.market') },
     { to: '/backtesting',  label: t('nav.backtesting') },
-    { to: '/monte-carlo',  label: t('nav.monteCarlo') },
   ]
 
   function handleLogout() {
