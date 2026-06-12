@@ -19,6 +19,15 @@ from backend.models.bl_optimizer import optimize_black_litterman
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 
+def _fetch_asset_name(ticker: str) -> str | None:
+    try:
+        import yfinance as yf
+        info = yf.Ticker(ticker).info
+        return info.get("longName") or info.get("shortName") or None
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Model portfolios — fixed allocations per risk band (GET /portfolio/suggestions)
 # ---------------------------------------------------------------------------
@@ -172,9 +181,17 @@ class PortfolioUpdate(BaseModel):
     include_in_aggregated: Optional[bool] = None
 
 
-def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
+def _build_holdings_out(holdings, display_currency: str, db=None) -> tuple[list, float]:
     if not holdings:
         return [], 0.0
+    # Backfill missing asset names from yfinance (once per holding, then persisted)
+    if db is not None:
+        for h in holdings:
+            if not h.asset_name:
+                name = _fetch_asset_name(h.ticker)
+                if name:
+                    h.asset_name = name
+        db.commit()
     prices = get_multiple_prices([h.ticker for h in holdings])
     holdings_out = []
     total_value = 0.0
@@ -196,6 +213,7 @@ def _build_holdings_out(holdings, display_currency: str) -> tuple[list, float]:
             "id": h.id,
             "portfolio_id": h.portfolio_id,
             "ticker": h.ticker,
+            "asset_name": h.asset_name or "",
             "asset_type": h.asset_type,
             "shares": h.shares,
             "avg_buy_price": h.avg_buy_price,
@@ -357,7 +375,7 @@ def get_portfolio_aggregated(current_user: User = Depends(get_current_user), db:
     ).all()
     display_currency = current_user.display_currency or 'USD'
     all_holdings = [h for p in portfolios for h in p.holdings]
-    holdings_out, total_value = _build_holdings_out(all_holdings, display_currency)
+    holdings_out, total_value = _build_holdings_out(all_holdings, display_currency, db=db)
     return {"holdings": holdings_out, "total_value": total_value, "display_currency": display_currency}
 
 
@@ -473,19 +491,29 @@ def _aggregate_by_ticker(raw_rows: list[dict]) -> list[dict]:
 
 
 def _build_export_rows(
-    current_user: User, db: Session
+    current_user: User, db: Session, portfolio_id: int | None = None
 ) -> tuple[list[dict], float, float, OptimizationResult | None]:
     """Return (rows, total_value, total_pnl, opt_result) for export endpoints.
 
     Each row dict has: ticker, asset_name, asset_type, shares, avg_buy_price,
     currency, current_price, value, pnl_abs, pnl_pct, weight_pct, opt_weight_pct.
     opt_weight_pct is None if the user has never run optimization.
+    If portfolio_id is given, exports only that portfolio; otherwise aggregated.
     """
-    portfolios = db.query(Portfolio).filter(
-        Portfolio.user_id == current_user.id,
-        Portfolio.include_in_aggregated == True,  # noqa: E712
-    ).all()
-    all_holdings = [h for p in portfolios for h in p.holdings]
+    if portfolio_id is not None:
+        portfolio = db.query(Portfolio).filter(
+            Portfolio.id == portfolio_id,
+            Portfolio.user_id == current_user.id,
+        ).first()
+        if not portfolio:
+            raise HTTPException(status_code=404, detail="Portfolio not found")
+        all_holdings = list(portfolio.holdings)
+    else:
+        portfolios = db.query(Portfolio).filter(
+            Portfolio.user_id == current_user.id,
+            Portfolio.include_in_aggregated == True,  # noqa: E712
+        ).all()
+        all_holdings = [h for p in portfolios for h in p.holdings]
     if not all_holdings:
         return [], 0.0, 0.0, None
 
@@ -539,17 +567,12 @@ def _build_export_rows(
 # Export — Excel
 # ---------------------------------------------------------------------------
 
-@router.get("/export/excel")
-def export_excel(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Download aggregated portfolio as .xlsx with two sheets: Holdings + Summary."""
+def _generate_excel(current_user: User, db: Session, portfolio_id: int | None = None):
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db)
+    rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db, portfolio_id)
     if not rows:
         raise HTTPException(status_code=400, detail="No holdings to export")
 
@@ -624,7 +647,6 @@ def export_excel(
         if r["pnl_pct"] is not None:
             pnl_cell.font = Font(color="008C46" if r["pnl_pct"] >= 0 else "BE0000", bold=True)
 
-    # Totals row
     total_row = ws.max_row + 1
     total_fill = PatternFill("solid", fgColor="D9E1F2")
     ws.cell(total_row, 1, "TOTAL").font = Font(bold=True)
@@ -745,6 +767,23 @@ def export_excel(
     )
 
 
+@router.get("/export/excel")
+def export_excel(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _generate_excel(current_user, db)
+
+
+@router.get("/{portfolio_id}/export/excel")
+def export_excel_by_portfolio(
+    portfolio_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _generate_excel(current_user, db, portfolio_id)
+
+
 # ---------------------------------------------------------------------------
 # Export — PDF
 # ---------------------------------------------------------------------------
@@ -765,14 +804,22 @@ def export_pdf(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Download aggregated portfolio as a formatted PDF report.
-
-    Sections: header (user + date), holdings table, summary block
-    (total value, P&L, and — if a prior optimization exists — return/vol/sharpe),
-    disclaimer.
-    """
     try:
         return _generate_pdf(current_user, db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}") from exc
+
+
+@router.get("/{portfolio_id}/export/pdf")
+def export_pdf_by_portfolio(
+    portfolio_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return _generate_pdf(current_user, db, portfolio_id)
     except HTTPException:
         raise
     except Exception as exc:
@@ -797,7 +844,6 @@ def _compute_historical_metrics(rows: list[dict], years: int = 3):
         if prices.empty or len(prices) < 20:
             return None
 
-        # Drop tickers with no data and renormalise weights
         available = [t for t in weights if t in prices.columns]
         if not available:
             return None
@@ -827,7 +873,6 @@ def _make_allocation_chart(type_totals: dict, total_value: float) -> "io.BytesIO
             labels.append(f"{t.capitalize()}\n{pct:.1f}%")
             sizes.append(v)
 
-        # Palette matching app colours: bond=teal, equity=blue, others=neutral
         PALETTE = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444", "#6B7280", "#14B8A6", "#F97316"]
         colors = PALETTE[:len(sizes)]
 
@@ -855,10 +900,10 @@ def _make_allocation_chart(type_totals: dict, total_value: float) -> "io.BytesIO
         return None
 
 
-def _generate_pdf(current_user: User, db):
+def _generate_pdf(current_user: User, db, portfolio_id: int | None = None):
     from fpdf import FPDF
 
-    rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db)
+    rows, total_value, total_pnl, opt_result = _build_export_rows(current_user, db, portfolio_id)
     if not rows:
         raise HTTPException(status_code=400, detail="No holdings to export")
 
@@ -1114,10 +1159,11 @@ def add_holding(
             purchase_date = date_type.fromisoformat(data.purchase_date)
         except ValueError:
             pass
+    asset_name = data.asset_name or _fetch_asset_name(data.ticker.upper())
     holding = Holding(
         portfolio_id=portfolio.id,
         ticker=data.ticker.upper(),
-        asset_name=data.asset_name,
+        asset_name=asset_name,
         asset_type=data.asset_type,
         shares=data.shares,
         avg_buy_price=data.avg_buy_price,
@@ -1201,7 +1247,7 @@ def get_portfolio_by_id(
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
     display_currency = current_user.display_currency or 'USD'
-    holdings_out, total_value = _build_holdings_out(portfolio.holdings, display_currency)
+    holdings_out, total_value = _build_holdings_out(portfolio.holdings, display_currency, db=db)
     return {
         "id": portfolio.id,
         "name": portfolio.name,

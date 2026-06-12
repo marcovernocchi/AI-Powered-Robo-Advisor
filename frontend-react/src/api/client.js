@@ -65,9 +65,10 @@ export const optimizePortfolio = () => request('/portfolio/optimize')
 export const getPortfolioMetrics = () => request('/portfolio/metrics')
 export const getPortfolioSuggestions = () => request('/portfolio/suggestions')
 
-export async function downloadPortfolioExport(format) {
+export async function downloadPortfolioExport(format, portfolioId = null) {
   const token = localStorage.getItem('token')
-  const res = await fetch(`/portfolio/export/${format}`, {
+  const url = portfolioId ? `/portfolio/${portfolioId}/export/${format}` : `/portfolio/export/${format}`
+  const res = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
   if (!res.ok) {
@@ -78,12 +79,12 @@ export async function downloadPortfolioExport(format) {
   const match = disposition.match(/filename="?([^"]+)"?/)
   const filename = match ? match[1] : `portfolio.${format}`
   const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
+  const objectUrl = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url
+  a.href = objectUrl
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  URL.revokeObjectURL(objectUrl)
 }
 
 export async function importPreview(file) {
