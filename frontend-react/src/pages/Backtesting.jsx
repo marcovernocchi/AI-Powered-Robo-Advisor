@@ -275,7 +275,7 @@ export default function Backtesting() {
 
       <div className="flex gap-6 items-start">
         {/* ── Left panel: form ── */}
-        <div className="w-80 shrink-0 space-y-4">
+        <div className="w-96 shrink-0 space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
 
             {/* Portfolio assets */}
@@ -344,17 +344,19 @@ export default function Backtesting() {
                     step="any"
                     fallback={0}
                     onChange={(v) => updateAsset(i, 'weight', v)}
-                    className="w-20 pl-2 pr-6 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100"
+                    className="w-20 pl-2 pr-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 dark:focus:ring-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
-                  {assets.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeAsset(i)}
-                      className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors text-lg leading-none"
-                    >
-                      ×
-                    </button>
-                  )}
+                  <div className="w-6 flex justify-center">
+                    {assets.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeAsset(i)}
+                        className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors text-lg leading-none"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
 
@@ -415,7 +417,7 @@ export default function Backtesting() {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 items-end">
                 <div>
                   <label className={`${labelClass} whitespace-pre-line`}>{bt('txCost')}</label>
                   <NumberInput value={txCost} onChange={setTxCost} min={0} max={500} step={1} optional placeholder="0" className={inputClass} />
