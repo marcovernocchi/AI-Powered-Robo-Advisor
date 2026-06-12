@@ -352,23 +352,23 @@ export default function Dashboard() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-14 z-10 bg-white dark:bg-gray-900">
+              <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 uppercase tracking-wide">
-                  <th className="text-left py-2 font-medium pr-4">Asset</th>
-                  <th className="text-right py-2 font-medium pr-4">Qty</th>
-                  <th className="text-right py-2 font-medium pr-4">Avg buy price</th>
-                  <th className="text-right py-2 font-medium pr-4">Current price</th>
-                  <th className="text-right py-2 font-medium pr-4">
+                  <th className="text-left pb-2 font-medium pr-4">Asset</th>
+                  <th className="text-right pb-2 font-medium pr-4">Qty</th>
+                  <th className="text-right pb-2 font-medium pr-4">Avg buy price</th>
+                  <th className="text-right pb-2 font-medium pr-4">Current price</th>
+                  <th className="text-right pb-2 font-medium pr-4">
                     <button onClick={() => handleSort('value')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
                       Current value <SortIcon col="value" />
                     </button>
                   </th>
-                  <th className="text-right py-2 font-medium pr-4">
+                  <th className="text-right pb-2 font-medium pr-4">
                     <button onClick={() => handleSort('pnl_pct')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
                       P&amp;L <SortIcon col="pnl_pct" />
                     </button>
                   </th>
-                  <th className="text-right py-2 font-medium">
+                  <th className="text-right pb-2 font-medium">
                     <button onClick={() => handleSort('purchase_date')} className="flex items-center gap-0.5 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
                       Buy date <SortIcon col="purchase_date" />
                     </button>
