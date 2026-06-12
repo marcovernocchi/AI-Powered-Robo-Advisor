@@ -8,7 +8,7 @@ import { useLang } from '../context/LangContext'
 import { usePortfolio, PERIOD_OPTIONS } from '../context/PortfolioContext'
 import { aggregateHoldings } from '../utils/holdingsUtils'
 
-const MASKED_VALUE = '● ● ● ● ●'
+const MASKED_VALUE = '* * * * *'
 
 function riskLabel(score) {
   if (score <= 26) return 'Low (Defensive)'
