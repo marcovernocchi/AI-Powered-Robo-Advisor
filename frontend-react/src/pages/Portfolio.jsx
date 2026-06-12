@@ -57,6 +57,7 @@ export default function Portfolio() {
   }
 
   async function handleDelete(id) {
+    if (!window.confirm(t('portfolio.confirmRemove'))) return
     try {
       await deleteHolding(id)
       await refresh()
