@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Card, Title, Text, Button, Badge, AreaChart,
   Grid,
@@ -18,6 +19,7 @@ function formatDate(dateStr, period) {
 
 export default function Market() {
   const { t } = useLang()
+  const [searchParams] = useSearchParams()
   const [input, setInput] = useState('')
   const [ticker, setTicker] = useState('')
   const [info, setInfo] = useState(null)
@@ -30,6 +32,14 @@ export default function Market() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const debounceRef = useRef(null)
   const wrapperRef = useRef(null)
+
+  useEffect(() => {
+    const sym = searchParams.get('ticker')
+    if (sym) {
+      setInput(sym)
+      loadTicker(sym)
+    }
+  }, [])
 
   useEffect(() => {
     function handleClickOutside(e) {
