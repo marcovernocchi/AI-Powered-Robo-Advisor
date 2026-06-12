@@ -134,7 +134,7 @@ async function buildChartData(holdings, period) {
     sorted = sorted.filter((d) => new Date(d.rawDate) >= cutoff)
   }
 
-  const result = thinData(sorted, period).map((d) => ({ date: formatDate(d.rawDate, period), Value: d.Value }))
+  const result = thinData(sorted, period).map((d) => ({ date: formatDate(d.rawDate, period), rawDate: d.rawDate, Value: d.Value }))
   _chartCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttlMin * 60 * 1000 })
   return result
 }

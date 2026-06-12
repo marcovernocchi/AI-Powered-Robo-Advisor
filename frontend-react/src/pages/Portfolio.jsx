@@ -256,11 +256,15 @@ export default function Portfolio() {
                 const fmtFull = (v) => new Intl.NumberFormat('en-US', {
                   style: 'currency', currency: displayCurrency, maximumFractionDigits: 0,
                 }).format(v)
-                const CustomTooltip = ({ payload, active, label }) => {
+                const CustomTooltip = ({ payload, active }) => {
                   if (!active || !payload?.length) return null
+                  const raw = payload[0]?.payload?.rawDate
+                  const dateLabel = raw
+                    ? new Date(raw).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : payload[0]?.payload?.date
                   return (
                     <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg px-4 py-3">
-                      <p className="text-xs text-gray-400 mb-1">{label}</p>
+                      <p className="text-xs text-gray-400 mb-1">{dateLabel}</p>
                       <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{fmtFull(payload[0].value)}</p>
                     </div>
                   )

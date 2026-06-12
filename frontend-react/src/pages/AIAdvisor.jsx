@@ -509,6 +509,13 @@ function AIAdvisorInner() {
     return t('advisor.riskHigh')
   }
 
+  function riskColor(score) {
+    if (score <= 26) return 'emerald'
+    if (score <= 42) return 'yellow'
+    if (score <= 56) return 'orange'
+    return 'red'
+  }
+
   // --- existing state ---
   const [showQuestionnaire, setShowQuestionnaire] = useState(false)
   const [answers, setAnswers] = useState(() => buildInitialAnswers())
@@ -687,7 +694,7 @@ function AIAdvisorInner() {
             <Title>{t('advisor.riskProfile')}</Title>
             {user?.risk_score ? (
               <div className="mt-2 flex items-center gap-3">
-                <Badge color="blue">{riskLabel(user.risk_score)}</Badge>
+                <Badge color={riskColor(user.risk_score)}>{riskLabel(user.risk_score)}</Badge>
                 <Text className="text-gray-400">{t('advisor.score')}: {user.risk_score}/68</Text>
               </div>
             ) : (
