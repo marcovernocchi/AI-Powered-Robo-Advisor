@@ -784,7 +784,6 @@ def _compute_historical_metrics(rows: list[dict], years: int = 3):
     try:
         from backend.backtesting.data_loader import load_prices
         from backend.backtesting.metrics import compute_metrics
-        from datetime import timedelta
 
         total_val = sum(r["value"] for r in rows if r["value"])
         if total_val <= 0:
