@@ -1,39 +1,14 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AreaChart, Badge, ProgressBar } from '@tremor/react'
-import { getPortfolio, getPortfolioById, getPortfolioList, createPortfolio, updatePortfolio, deletePortfolio } from '../api/client'
+import { createPortfolio, updatePortfolio, deletePortfolio } from '../api/client'
 import AddTransactionModal from '../components/AddTransactionModal'
 import { useAuth } from '../context/AuthContext'
 import { useLang } from '../context/LangContext'
+import { usePortfolio, PERIOD_OPTIONS } from '../context/PortfolioContext'
+import { aggregateHoldings } from '../utils/holdingsUtils'
 
 const MASKED_VALUE = '● ● ● ● ●'
-
-const PERIOD_OPTIONS = [
-  { label: '1W',  api: '5d',  months: null, days: 7 },
-  { label: '1M',  api: '1mo', months: 1,    days: null },
-  { label: 'YTD', api: 'ytd', months: null, days: null },
-  { label: '1Y',  api: '1y',  months: 12,   days: null },
-  { label: '5Y',  api: '5y',  months: 60,   days: null },
-  { label: 'MAX', api: 'max', months: null, days: null },
-]
-
-function thinData(data, opt) {
-  if (!data.length) return data
-  let step
-  if (opt.days || (opt.months && opt.months <= 1)) step = 1
-  else if (opt.label === 'YTD' || (opt.months && opt.months <= 12)) step = 7
-  else if (opt.months && opt.months <= 60) step = 14
-  else step = 30
-  return data.filter((_, i) => i % step === 0 || i === data.length - 1)
-}
-
-function formatDate(dateStr, opt) {
-  const d = new Date(dateStr)
-  if (opt.days || opt.label === 'YTD' || (opt.months && opt.months <= 12)) {
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
-  }
-  return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
-}
 
 function riskLabel(score) {
   if (score <= 26) return 'Low (Defensive)'
@@ -49,237 +24,43 @@ function riskColor(score) {
   return 'red'
 }
 
-import { getMarketHistory, getDividends } from '../api/client'
-import { aggregateHoldings } from '../utils/holdingsUtils'
-
-async function buildChartData(holdings, period) {
-  if (!holdings?.length) return []
-
-  const [histories, dividendData] = await Promise.all([
-    Promise.all(
-      holdings.map((h) =>
-        getMarketHistory(h.ticker, period.api)
-          .then((r) => ({
-            shares: h.shares,
-            value: h.value,
-            purchaseDate: h.purchase_date ?? null,
-            data: r.data,
-          }))
-          .catch(() => ({
-            shares: h.shares,
-            value: h.value,
-            purchaseDate: h.purchase_date ?? null,
-            data: [],
-          }))
-      )
-    ),
-    Promise.all(
-      holdings.map((h) =>
-        getDividends(h.ticker, h.purchase_date)
-          .then((r) => ({ shares: h.shares, purchaseDate: h.purchase_date, dividends: r.dividends }))
-          .catch(() => ({ shares: h.shares, purchaseDate: h.purchase_date, dividends: [] }))
-      )
-    ),
-  ])
-
-  // Initialize all dates in the period to 0
-  const byDate = {}
-  histories.forEach(({ data: rows }) => {
-    rows.forEach((row) => {
-      const date = row.Date?.split('T')[0] ?? row.Datetime?.split('T')[0]
-      if (date && byDate[date] === undefined) byDate[date] = 0
-    })
-  })
-
-  // Add each holding's value only from its purchase date onwards.
-  // For dates with no price data, forward-fill with the last known price.
-  const allDates = Object.keys(byDate).sort()
-
-  histories.forEach(({ shares, value, purchaseDate, data: rows }) => {
-    // Build a price map for known dates
-    const priceMap = {}
-    rows.forEach((row) => {
-      const date = row.Date?.split('T')[0] ?? row.Datetime?.split('T')[0]
-      if (date && row.Close != null) priceMap[date] = row.Close
-    })
-
-    const knownDates = Object.keys(priceMap).sort()
-    const perShareValue = shares > 0 ? value / shares : 0
-
-    // getMarketHistory returns raw Close prices in the ticker's native quoting
-    // unit/currency (e.g. GBp pence for LSE tickers), which can't be summed
-    // directly across holdings. h.value is already converted to the display
-    // currency (and pence-adjusted) by the backend, so the ratio between it
-    // and the latest raw close gives a single factor that folds in both the
-    // unit conversion and the FX rate (approximated as constant over the period).
-    let factor = 1
-    if (knownDates.length > 0 && perShareValue > 0) {
-      const latestRaw = priceMap[knownDates.at(-1)]
-      if (latestRaw) factor = perShareValue / latestRaw
-    }
-
-    allDates.forEach((date) => {
-      if (purchaseDate && date < purchaseDate) return
-
-      if (priceMap[date] != null) {
-        byDate[date] += shares * priceMap[date] * factor
-      } else if (knownDates.length > 0) {
-        // Last known price before or on this date
-        const last = knownDates.filter((d) => d <= date).at(-1)
-          ?? knownDates[0]  // if no data before this date, use earliest available
-        byDate[date] += shares * priceMap[last] * factor
-      } else {
-        // No history at all — use current value per share (already in display currency)
-        byDate[date] += shares * perShareValue
-      }
-    })
-  })
-
-  // Build cumulative dividend map: date → total dividends received up to that date
-  const dividendByDate = {}
-  dividendData.forEach(({ shares, purchaseDate, dividends }) => {
-    dividends.forEach(({ date, amount }) => {
-      if (purchaseDate && date < purchaseDate) return
-      // Add dividend to all chart dates >= payment date
-      Object.keys(byDate).forEach((chartDate) => {
-        if (chartDate >= date) {
-          dividendByDate[chartDate] = (dividendByDate[chartDate] ?? 0) + shares * amount
-        }
-      })
-    })
-  })
-
-  let sorted = Object.entries(byDate)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, value]) => ({
-      rawDate: date,
-      Value: parseFloat((value + (dividendByDate[date] ?? 0)).toFixed(2)),
-    }))
-
-  if (period.months !== null) {
-    const cutoff = new Date()
-    cutoff.setMonth(cutoff.getMonth() - period.months)
-    sorted = sorted.filter((d) => new Date(d.rawDate) >= cutoff)
-  }
-
-  return thinData(sorted, period).map((d) => ({
-    date: formatDate(d.rawDate, period),
-    Value: d.Value,
-  }))
-}
-
 export default function Dashboard() {
   const { user } = useAuth()
   const { t } = useLang()
   const navigate = useNavigate()
+  const {
+    portfolio: portfolioData, portfolioList, chartData,
+    activeTab, selectedPeriod,
+    loading, chartLoading,
+    handleTabChange, handlePeriod, refresh, fetchAll,
+  } = usePortfolio()
 
-  const [portfolioList, setPortfolioList] = useState([])   // [{id, name, ...}]
-  const [activeTab, setActiveTab] = useState('aggregated') // 'aggregated' | portfolio.id
-  const [portfolioData, setPortfolioData] = useState(null)
-  const [chartData, setChartData] = useState([])
   const [showCapital, setShowCapital] = useState(true)
-  const [loading, setLoading] = useState(true)
-  const [chartLoading, setChartLoading] = useState(false)
-  const [selectedPeriod, setSelectedPeriod] = useState(PERIOD_OPTIONS[3])
-
-  // Add account modal
   const [showAddModal, setShowAddModal] = useState(false)
   const [newPortfolioName, setNewPortfolioName] = useState('')
   const [addingPortfolio, setAddingPortfolio] = useState(false)
   const inputRef = useRef(null)
-
-  // Settings modal
   const [showSettings, setShowSettings] = useState(false)
   const [settingsDetail, setSettingsDetail] = useState(null)
-
-  // Add transaction modal
   const [showTxModal, setShowTxModal] = useState(false)
-
-  const loadPortfolio = useCallback(async (tab, period) => {
-    setChartLoading(true)
-    setChartData([])
-    try {
-      const data = tab === 'aggregated'
-        ? await getPortfolio()
-        : await getPortfolioById(tab)
-      setPortfolioData(data)
-      if (data.holdings?.length) {
-        const chart = await buildChartData(data.holdings, period)
-        setChartData(chart)
-      }
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setChartLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    async function init() {
-      try {
-        const [list, data] = await Promise.all([getPortfolioList(), getPortfolio()])
-        setPortfolioList(list)
-        setPortfolioData(data)
-        setLoading(false)
-        if (data.holdings?.length) {
-          setChartLoading(true)
-          try {
-            const chart = await buildChartData(data.holdings, selectedPeriod)
-            setChartData(chart)
-          } finally {
-            setChartLoading(false)
-          }
-        }
-      } catch (e) {
-        console.error(e)
-        setLoading(false)
-      }
-    }
-    init()
-  }, [])
 
   useEffect(() => {
     if (showAddModal) setTimeout(() => inputRef.current?.focus(), 50)
   }, [showAddModal])
 
-  async function handleTabChange(tab) {
-    if (tab === activeTab) return
-    setActiveTab(tab)
-    await loadPortfolio(tab, selectedPeriod)
-  }
-
-  async function handlePeriod(period) {
-    if (period.label === selectedPeriod.label) return
-    setSelectedPeriod(period)
-    if (!portfolioData?.holdings?.length) return
-    setChartLoading(true)
-    try {
-      const chart = await buildChartData(portfolioData.holdings, period)
-      setChartData(chart)
-    } finally {
-      setChartLoading(false)
-    }
-  }
-
   async function handleToggleAggregated(portfolio, value) {
     await updatePortfolio(portfolio.id, { include_in_aggregated: value })
-    const list = await getPortfolioList()
-    setPortfolioList(list)
     setSettingsDetail((prev) => prev ? { ...prev, include_in_aggregated: value } : prev)
-    if (activeTab === 'aggregated') await loadPortfolio('aggregated', selectedPeriod)
+    await refresh()
   }
 
   async function handleDeletePortfolio(portfolio) {
     if (!window.confirm(`Delete "${portfolio.name}"? This will remove all its holdings.`)) return
     await deletePortfolio(portfolio.id)
-    const list = await getPortfolioList()
-    setPortfolioList(list)
     setSettingsDetail(null)
     setShowSettings(false)
-    if (activeTab === portfolio.id) {
-      setActiveTab('aggregated')
-      await loadPortfolio('aggregated', selectedPeriod)
-    }
+    const nextTab = activeTab === portfolio.id ? 'aggregated' : activeTab
+    await fetchAll(nextTab, selectedPeriod)
   }
 
   async function handleCreatePortfolio(e) {
@@ -288,8 +69,7 @@ export default function Dashboard() {
     setAddingPortfolio(true)
     try {
       await createPortfolio(newPortfolioName.trim())
-      const list = await getPortfolioList()
-      setPortfolioList(list)
+      await refresh()
       setShowAddModal(false)
       setNewPortfolioName('')
     } catch (err) {
@@ -319,19 +99,13 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
       <p className="text-sm text-gray-400 dark:text-gray-500">
         {t('dashboard.breadcrumb')} <span className="mx-1">›</span>
         <span className="text-gray-700 dark:text-gray-300">{t('dashboard.investments')}</span>
       </p>
 
-      {/* Two-column layout */}
       <div className="flex gap-6 items-start">
-
-        {/* Left — Portfolio chart */}
         <div className="flex-1 min-w-0 bg-white dark:bg-gray-900 rounded-xl p-6 space-y-4">
-
-          {/* Header */}
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-base">{t('dashboard.portfolios')}</h2>
             <div className="flex items-center gap-2">
@@ -359,7 +133,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Tabs */}
           <div className="flex gap-1 border-b border-gray-100 dark:border-gray-800 flex-wrap">
             <button
               onClick={() => handleTabChange('aggregated')}
@@ -386,7 +159,6 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Show/hide + value */}
           <div className="space-y-1">
             <button
               onClick={() => setShowCapital((v) => !v)}
@@ -409,7 +181,6 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Chart */}
           {holdings.length > 0 ? (
             <>
               <p className="text-xs text-gray-400 text-right">{t('dashboard.chartIncludesDividends')}</p>
@@ -417,7 +188,7 @@ export default function Dashboard() {
                 {PERIOD_OPTIONS.map((p) => (
                   <button
                     key={p.label}
-                    onClick={() => handlePeriod(p)}
+                    onClick={() => handlePeriod(p, holdings)}
                     className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
                       selectedPeriod.label === p.label
                         ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
@@ -483,7 +254,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Right column */}
         <div className="w-72 shrink-0 space-y-4">
           <div className="bg-white dark:bg-gray-900 rounded-xl p-5">
             <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">{t('dashboard.riskProfile')}</p>
@@ -539,7 +309,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Positions table */}
       {holdings.length > 0 && (
         <div className="bg-white dark:bg-gray-900 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
@@ -597,68 +366,44 @@ export default function Dashboard() {
           portfolioList={portfolioList}
           defaultPortfolioId={activeTab !== 'aggregated' ? activeTab : portfolioList[0]?.id}
           onClose={() => setShowTxModal(false)}
-          onAdded={async () => { await loadPortfolio(activeTab, selectedPeriod); const list = await getPortfolioList(); setPortfolioList(list) }}
+          onAdded={refresh}
         />
       )}
 
-      {/* Net worth settings modal */}
       {showSettings && (
         <div
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
           onClick={(e) => { if (e.target === e.currentTarget) { setShowSettings(false); setSettingsDetail(null) } }}
         >
           <div className="bg-white dark:bg-gray-900 rounded-2xl w-[480px] shadow-xl overflow-hidden">
-            {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-800">
               <div className="flex items-center gap-2">
                 {settingsDetail && (
-                  <button
-                    onClick={() => setSettingsDetail(null)}
-                    className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mr-1"
-                  >
-                    ←
-                  </button>
+                  <button onClick={() => setSettingsDetail(null)} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mr-1">←</button>
                 )}
                 <h3 className="font-bold text-lg">
                   {settingsDetail ? settingsDetail.name : t('dashboard.netWorthSettings')}
                 </h3>
               </div>
-              <button
-                onClick={() => { setShowSettings(false); setSettingsDetail(null) }}
-                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl leading-none"
-              >
-                ×
-              </button>
+              <button onClick={() => { setShowSettings(false); setSettingsDetail(null) }} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl leading-none">×</button>
             </div>
-
-            {/* Body */}
             <div className="px-6 py-4">
               {!settingsDetail ? (
-                // Portfolio list
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{t('dashboard.yourAccounts')}</p>
                   {portfolioList.length === 0 && (
                     <p className="text-sm text-gray-400 py-4 text-center">{t('dashboard.noPortfolios')}</p>
                   )}
                   {portfolioList.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => setSettingsDetail(p)}
-                      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 shrink-0">
-                        $
-                      </div>
+                    <button key={p.id} onClick={() => setSettingsDetail(p)} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 shrink-0">$</div>
                       <span className="flex-1 text-left font-medium text-sm">{p.name}</span>
-                      {!p.include_in_aggregated && (
-                        <span className="text-xs text-gray-400 mr-1">{t('dashboard.excluded')}</span>
-                      )}
+                      {!p.include_in_aggregated && <span className="text-xs text-gray-400 mr-1">{t('dashboard.excluded')}</span>}
                       <span className="text-gray-300 dark:text-gray-600">›</span>
                     </button>
                   ))}
                 </div>
               ) : (
-                // Portfolio detail settings
                 <div className="space-y-4 py-2">
                   <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800">
                     <div>
@@ -667,24 +412,12 @@ export default function Dashboard() {
                     </div>
                     <button
                       onClick={() => handleToggleAggregated(settingsDetail, !settingsDetail.include_in_aggregated)}
-                      className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${
-                        settingsDetail.include_in_aggregated
-                          ? 'bg-gray-900 dark:bg-gray-100'
-                          : 'bg-gray-200 dark:bg-gray-700'
-                      }`}
+                      className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${settingsDetail.include_in_aggregated ? 'bg-gray-900 dark:bg-gray-100' : 'bg-gray-200 dark:bg-gray-700'}`}
                     >
-                      <span className={`absolute top-0.5 w-5 h-5 rounded-full shadow transition-all duration-200 ${
-                        settingsDetail.include_in_aggregated
-                          ? 'left-6 bg-white dark:bg-gray-900'
-                          : 'left-0.5 bg-white dark:bg-gray-400'
-                      }`} />
+                      <span className={`absolute top-0.5 w-5 h-5 rounded-full shadow transition-all duration-200 ${settingsDetail.include_in_aggregated ? 'left-6 bg-white dark:bg-gray-900' : 'left-0.5 bg-white dark:bg-gray-400'}`} />
                     </button>
                   </div>
-
-                  <button
-                    onClick={() => handleDeletePortfolio(settingsDetail)}
-                    className="w-full flex items-center gap-2 py-3 text-sm text-red-500 hover:text-red-600 transition-colors"
-                  >
+                  <button onClick={() => handleDeletePortfolio(settingsDetail)} className="w-full flex items-center gap-2 py-3 text-sm text-red-500 hover:text-red-600 transition-colors">
                     <span>🗑</span>
                     <span>{t('dashboard.deletePortfolio')} "{settingsDetail.name}"</span>
                   </button>
@@ -695,12 +428,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Add portfolio modal */}
       {showAddModal && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false) }}
-        >
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false) }}>
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-80 space-y-4 shadow-xl">
             <h3 className="font-semibold text-base">{t('dashboard.newPortfolio')}</h3>
             <form onSubmit={handleCreatePortfolio} className="space-y-3">
@@ -714,18 +443,8 @@ export default function Dashboard() {
                 required
               />
               <div className="flex gap-2 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-                >
-                  {t('dashboard.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={addingPortfolio}
-                  className="px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 disabled:opacity-50"
-                >
+                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">{t('dashboard.cancel')}</button>
+                <button type="submit" disabled={addingPortfolio} className="px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:opacity-90 disabled:opacity-50">
                   {addingPortfolio ? t('dashboard.creating') : t('dashboard.create')}
                 </button>
               </div>

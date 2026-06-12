@@ -10,6 +10,22 @@ _AV_BASE = "https://www.alphavantage.co/query"
 _CACHE_TTL_HOURS = 72
 _CACHE_FRESH_MINUTES = 15
 
+# In-memory cache for price history: {(ticker, period, start_date): (df, expires_at)}
+_history_cache: dict[tuple, tuple] = {}
+
+# TTL per period: short periods change intraday, long periods are daily data
+_HISTORY_TTL: dict[str, timedelta] = {
+    "5d":  timedelta(minutes=30),
+    "1mo": timedelta(minutes=30),
+    "3mo": timedelta(hours=2),
+    "6mo": timedelta(hours=2),
+    "ytd": timedelta(hours=2),
+    "1y":  timedelta(hours=4),
+    "2y":  timedelta(hours=4),
+    "5y":  timedelta(hours=8),
+    "max": timedelta(hours=8),
+}
+
 
 def _av_key() -> str:
     return settings.alpha_vantage_api_key
@@ -151,28 +167,39 @@ def get_multiple_prices(tickers: list) -> dict:
 
 
 def get_price_history(ticker: str, period: str = "1y", start_date: str = None) -> pd.DataFrame:
-    """Alpha Vantage first, yfinance fallback.
+    """Alpha Vantage first, yfinance fallback. Results are cached in memory.
 
     Returns an empty DataFrame (with Close/Volume columns) if the ticker can't
     be resolved by either source, e.g. an invalid symbol or ISIN — never raises.
     """
+    cache_key = (ticker, period, start_date)
+    cached = _history_cache.get(cache_key)
+    if cached is not None:
+        df_cached, expires_at = cached
+        if datetime.utcnow() < expires_at:
+            return df_cached
+
     df = _av_get_history(ticker, period)
     if df is not None and not df.empty:
         if start_date:
             df = df[df.index >= pd.to_datetime(start_date)]
-        return df.dropna()
+        df = df.dropna()
+    else:
+        try:
+            ticker_obj = yf.Ticker(ticker)
+            if start_date:
+                from datetime import date
+                hist = ticker_obj.history(start=start_date, end=date.today().isoformat())
+            else:
+                hist = ticker_obj.history(period=period)
+            df = hist[["Close", "Volume"]].dropna()
+        except Exception as exc:
+            print(f"[market_data] failed to fetch price history for {ticker}: {exc}")
+            df = pd.DataFrame(columns=["Close", "Volume"])
 
-    try:
-        ticker_obj = yf.Ticker(ticker)
-        if start_date:
-            from datetime import date
-            hist = ticker_obj.history(start=start_date, end=date.today().isoformat())
-        else:
-            hist = ticker_obj.history(period=period)
-        return hist[["Close", "Volume"]].dropna()
-    except Exception as exc:
-        print(f"[market_data] failed to fetch price history for {ticker}: {exc}")
-        return pd.DataFrame(columns=["Close", "Volume"])
+    ttl = _HISTORY_TTL.get(period, timedelta(hours=2))
+    _history_cache[cache_key] = (df, datetime.utcnow() + ttl)
+    return df
 
 
 def get_dividend_history(ticker: str, start_date: str = None) -> pd.DataFrame:
