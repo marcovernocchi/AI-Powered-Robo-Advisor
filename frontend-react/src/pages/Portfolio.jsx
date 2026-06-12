@@ -446,7 +446,7 @@ export default function Portfolio() {
 
         {holdings.length > 0 ? (
           <Table>
-            <TableHead>
+            <TableHead className="sticky top-14 z-10 bg-white dark:bg-gray-900">
               <TableRow>
                 <TableHeaderCell className="w-1/2">Asset</TableHeaderCell>
                 <TableHeaderCell>{t('portfolio.purchaseValue')}</TableHeaderCell>
